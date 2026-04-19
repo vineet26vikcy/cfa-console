@@ -136,7 +136,7 @@ const CFA_SYLLABUS_PARTH: Record<string, { weight: string, sections: Record<stri
   }}
 };
 
-// Utilities to unify topic structure
+// Utilities
 const getSubjectForTopic = (topicName: string, syllabusObj: any) => {
   for (const [subject, data] of Object.entries(syllabusObj)) {
     const sections = (data as any).sections;
@@ -154,7 +154,6 @@ const getTotalTopicsCount = (syllabusObj: any) => {
   }, 0);
 };
 
-// Smart Duration Formatting: 0:44:43 -> 45 mins | 1:03:58 -> 1 hr 4 mins
 const formatDuration = (dur: string | null) => {
   if (!dur || !dur.includes(':')) return dur;
   const parts = dur.trim().split(':').map(Number);
@@ -166,44 +165,6 @@ const formatDuration = (dur: string | null) => {
     return `${m} mins`;
   }
   return dur;
-};
-
-// Render Topic Item
-const TopicLabel = ({ topic, isChecked, state, onToggle }: { topic: string, isChecked: boolean, state: any, onToggle: () => void }) => {
-  const [topicName, rawDuration] = topic.includes(' | ') ? topic.split(' | ') : [topic, null];
-  const duration = formatDuration(rawDuration);
-  
-  let labelClass = "flex items-start gap-3 py-3 px-2 sm:p-2 border border-transparent border-b-gray-200 cursor-pointer transition-colors bg-white hover:bg-gray-100";
-  let textClass = "text-black";
-  
-  if (isChecked && state) {
-    if (state.day7) { 
-      labelClass = "flex items-start gap-3 py-3 px-2 sm:p-2 border-2 border-[#166534] bg-[#f0fdf4] cursor-pointer transition-colors mb-1 shadow-sm !border-[#166534] !bg-[#f0fdf4]"; 
-      textClass = "text-[#166534] !text-[#166534]"; 
-    }
-    else if (state.day4) { 
-      labelClass = "flex items-start gap-3 py-3 px-2 sm:p-2 border-2 border-[#854d0e] bg-[#fefce8] cursor-pointer transition-colors mb-1 shadow-sm !border-[#854d0e] !bg-[#fefce8]"; 
-      textClass = "text-[#854d0e] !text-[#854d0e]"; 
-    }
-  }
-
-  return (
-    <label className={labelClass}>
-      <div className="pt-[2px] sm:pt-0.5">
-        <input type="checkbox" checked={isChecked} onChange={onToggle} className="w-4 h-4 sm:w-3.5 sm:h-3.5 accent-black border-black cursor-pointer rounded-none" />
-      </div>
-      <span className={`text-xs leading-snug flex-1 ${isChecked && !state?.day4 && !state?.day7 ? 'line-through opacity-50' : ''} ${textClass}`}>
-        {topicName}
-        {duration && <span className="text-[#ea580c] ml-2 font-bold whitespace-nowrap !text-[#ea580c]">[{duration}]</span>}
-      </span>
-      {isChecked && (
-        <div className="relative group ml-2">
-          <Info size={14} className="text-gray-400" />
-          <div className="absolute right-0 bottom-full mb-1 hidden group-hover:block z-50 bg-black text-white text-[10px] px-2 py-1 whitespace-nowrap">Done</div>
-        </div>
-      )}
-    </label>
-  );
 };
 
 // --- 2. HELPER FUNCTIONS ---
@@ -303,7 +264,7 @@ const useStore = create<TrackerState>()(
       setPlan: (topics, deadline) => set(() => ({ planTopics: topics, planDeadline: deadline })),
       clearPlan: () => set(() => ({ planTopics: [], planDeadline: null })),
     }),
-    { name: 'cfa-mono-v6' }
+    { name: 'cfa-mono-v7' }
   )
 );
 
@@ -416,24 +377,36 @@ export default function Dashboard() {
     if (confirmed) state.setSyllabusType(type);
   };
 
+  // --- PLAN CALCULATIONS (FIXED: Leaves completed topics on today's list) ---
   const getPlanDetails = () => {
     if (!state.planDeadline) return null;
-    const planTopicsLeft = state.planTopics.filter(t => !completedTopics[t]);
     const todayStr = getTodayStr();
+    
+    // To prevent the "conveyor belt" effect where completing a topic pulls tomorrow's topic into today,
+    // we retain topics completed *today* in the active queue for calculation purposes.
+    const planTopicsActive = state.planTopics.filter(t => {
+      if (!completedTopics[t]) return true; // Not done yet
+      if (completedTopics[t] === todayStr) return true; // Done today (keep in list so it strikes through)
+      return false; // Done before today (remove from active list)
+    });
+
     let daysLeft = getDaysDiff(state.planDeadline, todayStr);
     if (daysLeft < 1) daysLeft = 1; 
 
-    const topicsPerDay = Math.ceil(planTopicsLeft.length / daysLeft);
+    const topicsPerDay = Math.ceil(planTopicsActive.length / daysLeft);
 
     const forecast = [];
     for(let i=0; i<4; i++) {
       const targetDate = new Date();
       targetDate.setDate(targetDate.getDate() + i);
-      const dayTopics = planTopicsLeft.slice(i * topicsPerDay, (i + 1) * topicsPerDay);
+      const dayTopics = planTopicsActive.slice(i * topicsPerDay, (i + 1) * topicsPerDay);
       forecast.push({ date: targetDate, isToday: i === 0, isTomorrow: i === 1, topics: dayTopics });
     }
 
-    return { daysLeft, topicsLeft: planTopicsLeft.length, topicsPerDay, forecast };
+    // Items left should strictly reflect uncompleted items
+    const strictTopicsLeft = state.planTopics.filter(t => !completedTopics[t]).length;
+
+    return { daysLeft, topicsLeft: strictTopicsLeft, topicsPerDay, forecast };
   };
 
   const handleCreatePlan = () => {
@@ -578,7 +551,7 @@ export default function Dashboard() {
           {activeTab === 'dashboard' && (
             <div className="space-y-6 sm:space-y-8 animate-in fade-in duration-300">
               
-              {/* Heatmap Card */}
+              {/* Heatmap Card (True GitHub Flow) */}
               <div className="bg-white border-2 border-black p-4 sm:p-5 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
                 <div className="flex justify-between items-center mb-4 border-b-2 border-black pb-2">
                   <div className="flex items-center gap-2">
@@ -589,7 +562,7 @@ export default function Dashboard() {
                 </div>
                 
                 <div className="overflow-x-auto pb-4 pt-2">
-                  {/* Months Header */}
+                  {/* Months Header - Properly Z-Indexed and Aligned */}
                   <div className="flex text-[9px] text-gray-500 mb-2 ml-[24px] uppercase font-bold tracking-tighter h-3 relative">
                     {heatmapCols.map((col, i) => {
                       const isNewMonth = i === 0 || col[0].date.getMonth() !== heatmapCols[i-1][0].date.getMonth();
@@ -664,7 +637,6 @@ export default function Dashboard() {
 
                   return (
                     <div key={subject} className={`bg-white border-2 transition-all flex flex-col ${isExpanded ? 'border-[#ea580c] shadow-[4px_4px_0px_0px_rgba(234,88,12,1)]' : 'border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]'}`}>
-                      {/* HEADER - Turns Orange when Expanded */}
                       <div onClick={() => toggleSubject(subject)} className={`p-3 sm:p-4 border-b-2 cursor-pointer flex flex-col gap-2 transition-colors ${isExpanded ? 'bg-[#ea580c] border-[#ea580c] text-white' : 'bg-gray-50 border-transparent hover:border-black text-black'}`}>
                         <div className="flex justify-between items-center">
                           <h3 className="font-bold text-xs sm:text-sm uppercase tracking-tight">{subject}</h3>
@@ -842,7 +814,6 @@ export default function Dashboard() {
 
                         return (
                           <div key={subject} className={`border-2 transition-all flex flex-col bg-white ${isExpanded ? 'border-[#ea580c] shadow-[2px_2px_0px_0px_rgba(234,88,12,1)]' : 'border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]'}`}>
-                            {/* PLANNER SUBJECT HEADER */}
                             <div className={`flex items-center gap-3 p-3 sm:p-4 transition-colors ${isExpanded ? 'bg-[#ea580c] text-white border-b-2 border-[#ea580c]' : 'hover:bg-gray-50 border-b-2 border-transparent text-black'}`}>
                               <input
                                 type="checkbox"
@@ -962,24 +933,24 @@ export default function Dashboard() {
                                     <div className="pt-[2px]">
                                       <input type="checkbox" checked={!!completedTopics[t]} onChange={() => state.toggleTopic(t)} className="w-4 h-4 sm:w-3.5 sm:h-3.5 accent-black rounded-none cursor-pointer" />
                                     </div>
-                                    <div className={`flex flex-col flex-1 leading-tight font-bold ${completedTopics[t] ? 'opacity-50 line-through' : 'text-black'}`}>
-                                      <span className="text-[#ea580c] mr-1 uppercase text-[10px] !text-[#ea580c]">[{subject}]</span>
+                                    <div className={`flex flex-col flex-1 leading-tight font-bold ${completedTopics[t] ? 'opacity-40 line-through' : 'text-black'}`}>
+                                      <span className={`mr-1 uppercase text-[10px] ${completedTopics[t] ? 'text-gray-500' : 'text-[#ea580c]'}`}>[{subject}]</span>
                                       <span className="mt-1">{topicName}</span>
-                                      {duration && <span className="text-[#ea580c] font-bold mt-1 text-[10px] !text-[#ea580c]">[{duration}]</span>}
+                                      {duration && <span className={`font-bold mt-1 text-[10px] ${completedTopics[t] ? 'text-gray-500' : 'text-[#ea580c]'}`}>[{duration}]</span>}
                                     </div>
                                   </label>
                                 );
                               }
 
                               return (
-                                <div key={tIdx} className={`text-xs p-2 leading-tight font-bold text-gray-500 border-l-2 border-l-gray-300 flex flex-col`}>
-                                  <span className="text-[#ea580c] mr-1 uppercase !text-[#ea580c]">[{subject}]</span>
+                                <div key={tIdx} className={`text-xs p-2 leading-tight font-bold flex flex-col ${completedTopics[t] ? 'opacity-40 line-through border-l-2 border-l-gray-200 text-gray-400' : 'text-gray-500 border-l-2 border-l-gray-300'}`}>
+                                  <span className={`mr-1 uppercase ${completedTopics[t] ? 'text-gray-400' : 'text-[#ea580c]'}`}>[{subject}]</span>
                                   <span className="block mt-1">{topicName}</span>
-                                  {duration && <span className="text-[#ea580c] font-bold block mt-1 !text-[#ea580c]">[{duration}]</span>}
+                                  {duration && <span className={`font-bold block mt-1 ${completedTopics[t] ? 'text-gray-400' : 'text-[#ea580c]'}`}>[{duration}]</span>}
                                 </div>
                               );
                             })}
-                            {dayPlan.isToday && <div className="text-[9px] text-gray-400 mt-2 italic">*Checking items removes them from tomorrow's queue.</div>}
+                            {dayPlan.isToday && <div className="text-[9px] text-gray-400 mt-2 italic">*Completed items remain until tomorrow's refresh.</div>}
                           </div>
                         )}
                       </div>
