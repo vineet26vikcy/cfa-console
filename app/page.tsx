@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { BookOpen, Calendar, ChevronRight, ChevronDown, Info, CalendarDays, CheckCircle2, X, Download, Upload, PieChart, Target, ListTodo, Settings, AlertTriangle } from 'lucide-react';
+import { BookOpen, Calendar, ChevronRight, ChevronDown, Info, CalendarDays, CheckCircle2, Upload, Download, PieChart, Target, ListTodo, Settings, AlertTriangle } from 'lucide-react';
 
 // --- 1. DATA & WEIGHTAGE ---
 
@@ -301,7 +301,7 @@ const useStore = create<TrackerState>()(
       setPlan: (topics, deadline) => set(() => ({ planTopics: topics, planDeadline: deadline })),
       clearPlan: () => set(() => ({ planTopics: [], planDeadline: null })),
     }),
-    { name: 'cfa-mono-v8' }
+    { name: 'cfa-mono-v9' } // Bumped version to force a clean slate for safety
   )
 );
 
@@ -312,7 +312,6 @@ export default function Dashboard() {
   const [expandedSubjects, setExpandedSubjects] = useState<Record<string, boolean>>({});
   const [expandedTopicSections, setExpandedTopicSections] = useState<Record<string, boolean>>({});
   const [expandedPlanSubjects, setExpandedPlanSubjects] = useState<Record<string, boolean>>({});
-  const [isPlanModalOpen, setIsPlanModalOpen] = useState(false);
   const [showThemeMenu, setShowThemeMenu] = useState(false); 
   const fileInputRef = useRef<HTMLInputElement>(null);
   
@@ -344,7 +343,7 @@ export default function Dashboard() {
   const todayCompletedCount = dailyCompletions[getTodayStr()] || 0;
   const maxDaily = Math.max(4, ...Object.values(dailyCompletions));
 
-  // --- HEATMAP GENERATION (FORWARD LOOKING FROM START DATE) ---
+  // --- HEATMAP GENERATION ---
   const generateHeatmapGrid = () => {
     const today = new Date();
     today.setHours(0,0,0,0);
@@ -394,7 +393,7 @@ export default function Dashboard() {
   const heatmapCols = generateHeatmapGrid();
   const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
-  // --- 1-4-7 REVIEWS ---
+  // --- 1-4-7 REVIEWS CURRENT DAY ---
   const getReviews = () => {
     const day4 = []; const day7 = [];
     const todayStr = getTodayStr();
@@ -408,13 +407,40 @@ export default function Dashboard() {
   };
   const { day4: day4Reviews, day7: day7Reviews } = getReviews();
 
+  // --- 1-4-7 NEXT 10 DAYS FORECAST ---
+  const getUpcomingReviews = () => {
+    const upcoming = [];
+    const today = new Date();
+    today.setHours(0,0,0,0);
+
+    for (let i = 1; i <= 10; i++) {
+      const targetDate = new Date(today);
+      targetDate.setDate(targetDate.getDate() + i);
+      const targetDateStr = getLocalYMD(targetDate);
+      
+      const d4 = [];
+      const d7 = [];
+      
+      for (const topic of activeCompletedTopics) {
+        const diffDays = getDaysDiff(targetDateStr, completedTopics[topic]);
+        const st = reviewStates[topic] || { day4: false, day7: false };
+        // We only predict they WILL review it if they haven't already marked it done.
+        if (diffDays === 3 && !st.day4) d4.push(topic);
+        if (diffDays === 6 && !st.day7) d7.push(topic);
+      }
+      
+      upcoming.push({ date: targetDate, dateStr: targetDateStr, day4: d4, day7: d7 });
+    }
+    return upcoming;
+  };
+  const upcomingReviews = getUpcomingReviews();
+
   const handleSyllabusToggle = (type: 'official' | 'parth') => {
     if (state.syllabusType === type) return;
     const confirmed = window.confirm("Switching curriculums will start a new consistency grid and clear your active plan (your previous data is saved securely in the background). Continue?");
     if (confirmed) state.setSyllabusType(type);
   };
 
-  // --- PLAN CALCULATIONS ---
   const getPlanDetails = () => {
     if (!state.planDeadline) return null;
     const todayStr = getTodayStr();
@@ -518,6 +544,7 @@ export default function Dashboard() {
         .theme-dark .hover\\:bg-gray-200:hover { background-color: #525252 !important; }
         .theme-dark .hover\\:text-black:hover { color: #ffffff !important; }
         .theme-dark .accent-black { accent-color: #f3f4f6 !important; }
+        .theme-dark .bg-\\[\\#ebedf0\\] { background-color: #262626 !important; border-color: #404040 !important; }
 
         .theme-rgb .app-wrapper { background-color: #000000 !important; color: #ffffff !important; }
         .theme-rgb .bg-\\[\\#fafafa\\] { background-color: #000000 !important; }
@@ -535,6 +562,7 @@ export default function Dashboard() {
         .theme-rgb .hover\\:bg-gray-50:hover { background-color: #18181b !important; }
         .theme-rgb .hover\\:bg-gray-100:hover { background-color: #27272a !important; }
         .theme-rgb .hover\\:bg-gray-200:hover { background-color: #3f3f46 !important; }
+        .theme-rgb .bg-\\[\\#ebedf0\\] { background-color: #18181b !important; border-color: #27272a !important; }
         
         @keyframes rgb-border { 0% {border-color: #ef4444;} 33% {border-color: #22c55e;} 66% {border-color: #3b82f6;} 100% {border-color: #ef4444;} }
         @keyframes rgb-shadow { 0% {box-shadow: 4px 4px 0px 0px #ef4444;} 33% {box-shadow: 4px 4px 0px 0px #22c55e;} 66% {box-shadow: 4px 4px 0px 0px #3b82f6;} 100% {box-shadow: 4px 4px 0px 0px #ef4444;} }
@@ -657,7 +685,7 @@ export default function Dashboard() {
                 </div>
               </div>
 
-              {/* 3-Level Syllabus Grid */}
+              {/* Syllabus Grid */}
               <div className="grid grid-cols-1 gap-4 pt-4 items-start">
                 {Object.entries(currentSyllabus).map(([subject, data]) => {
                   const subjectTopics = Object.values(data.sections).flat();
@@ -680,7 +708,6 @@ export default function Dashboard() {
                         </div>
                       </div>
 
-                      {/* LEVEL 2: TOPIC SECTIONS */}
                       {isExpanded && (
                         <div className="flex flex-col bg-white border-t-2 border-[#ea580c] p-2 sm:p-4 gap-3">
                           {Object.entries(data.sections).map(([sectionName, topics]) => {
@@ -697,17 +724,10 @@ export default function Dashboard() {
                                   </div>
                                 </div>
                                 
-                                {/* LEVEL 3: VIDEOS/MODULES */}
                                 {isSectionExpanded && (
                                   <div className="flex flex-col border-t-2 border-black bg-white">
                                     {topics.map((topic) => (
-                                      <TopicLabel 
-                                        key={topic} 
-                                        topic={topic} 
-                                        isChecked={!!completedTopics[topic]} 
-                                        state={reviewStates[topic]} 
-                                        onToggle={() => state.toggleTopic(topic)} 
-                                      />
+                                      <TopicLabel key={topic} topic={topic} isChecked={!!completedTopics[topic]} state={reviewStates[topic]} onToggle={() => state.toggleTopic(topic)} />
                                     ))}
                                   </div>
                                 )}
@@ -727,24 +747,19 @@ export default function Dashboard() {
           {activeTab === 'tracker' && (
             <div className="space-y-6 animate-in fade-in duration-300">
               
-              <div className="mb-6 border-b-2 border-black pb-4 flex flex-col sm:flex-row justify-between items-start gap-4">
-                <div>
-                  <h1 className="text-lg font-bold uppercase tracking-tight mb-2">1-4-7_Spaced_Repetition</h1>
-                  <div className="bg-[#fff7ed] border border-[#ea580c] p-3 max-w-xl shadow-[2px_2px_0px_0px_rgba(234,88,12,1)]">
-                    <p className="text-[#ea580c] text-[11px] sm:text-xs font-bold uppercase tracking-tight leading-relaxed !text-[#ea580c]">
-                      [ RULE ]: The 1-4-7 protocol guarantees memory retention. After completing a topic (Day 1), you review it 3 days later (Day 4) and again 3 days after that (Day 7). This system strictly auto-queues your reviews based on your historical completion timestamps.
-                    </p>
-                  </div>
+              <div className="mb-6 border-b-2 border-black pb-4 flex flex-col items-start gap-4">
+                <h1 className="text-lg font-bold uppercase tracking-tight mb-2">1-4-7_Spaced_Repetition</h1>
+                <div className="bg-[#fff7ed] border border-[#ea580c] p-3 w-full shadow-[2px_2px_0px_0px_rgba(234,88,12,1)]">
+                  <p className="text-[#ea580c] text-[11px] sm:text-xs font-bold uppercase tracking-tight leading-relaxed !text-[#ea580c]">
+                    [ RULE ]: The 1-4-7 protocol guarantees memory retention. After completing a topic (Day 1), you review it 3 days later (Day 4) and again 3 days after that (Day 7). This system strictly auto-queues your reviews based on your historical completion timestamps.
+                  </p>
                 </div>
-                <button onClick={() => setIsPlanModalOpen(true)} className="bg-black text-white px-4 py-3 sm:py-2 text-xs font-bold uppercase tracking-tight hover:bg-gray-800 transition-colors flex items-center justify-center gap-2 shadow-[2px_2px_0px_0px_rgba(156,163,175,1)] w-full sm:w-auto">
-                  <CalendarDays size={16} /> Plan_Till_Sunday
-                </button>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
-                <div className="bg-[#fefce8] border-2 border-[#854d0e] shadow-[4px_4px_0px_0px_rgba(133,77,14,1)] p-4 sm:p-5 min-h-[300px] !bg-[#fefce8] !border-[#854d0e]">
+                <div className="bg-[#fefce8] border-2 border-[#854d0e] shadow-[4px_4px_0px_0px_rgba(133,77,14,1)] p-4 sm:p-5 min-h-[250px] !bg-[#fefce8] !border-[#854d0e]">
                   <div className="flex justify-between items-center pb-3 border-b-2 border-[#854d0e] mb-3 !border-[#854d0e]">
-                    <span className="font-bold text-sm uppercase tracking-tight text-[#854d0e] !text-[#854d0e]">Day_4_Review</span>
+                    <span className="font-bold text-sm uppercase tracking-tight text-[#854d0e] !text-[#854d0e]">Today's_Day_4_Review</span>
                     <span className="bg-[#854d0e] text-white px-2 py-0.5 text-xs font-bold !bg-[#854d0e] !text-white">{day4Reviews.length}</span>
                   </div>
                   {day4Reviews.length === 0 ? (
@@ -770,9 +785,9 @@ export default function Dashboard() {
                   )}
                 </div>
 
-                <div className="bg-[#f0fdf4] border-2 border-[#166534] shadow-[4px_4px_0px_0px_rgba(22,101,52,1)] p-4 sm:p-5 min-h-[300px] !bg-[#f0fdf4] !border-[#166534]">
+                <div className="bg-[#f0fdf4] border-2 border-[#166534] shadow-[4px_4px_0px_0px_rgba(22,101,52,1)] p-4 sm:p-5 min-h-[250px] !bg-[#f0fdf4] !border-[#166534]">
                   <div className="flex justify-between items-center pb-3 border-b-2 border-[#166534] mb-3 !border-[#166534]">
-                    <span className="font-bold text-sm uppercase tracking-tight text-[#166534] !text-[#166534]">Day_7_Review</span>
+                    <span className="font-bold text-sm uppercase tracking-tight text-[#166534] !text-[#166534]">Today's_Day_7_Review</span>
                     <span className="bg-[#166534] text-white px-2 py-0.5 text-xs font-bold !bg-[#166534] !text-white">{day7Reviews.length}</span>
                   </div>
                   {day7Reviews.length === 0 ? (
@@ -798,6 +813,67 @@ export default function Dashboard() {
                   )}
                 </div>
               </div>
+
+              {/* 10-DAY FORECAST ENGINE */}
+              <div className="mt-12 border-t-4 border-black pt-8">
+                <h2 className="text-sm font-bold uppercase tracking-tight mb-6 flex items-center gap-2 text-[#ea580c] !text-[#ea580c]">
+                  <CalendarDays size={20} /> Upcoming_Revision_Topics (Next 10 Days)
+                </h2>
+                
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+                  {upcomingReviews.map((day, i) => {
+                    const isEmpty = day.day4.length === 0 && day.day7.length === 0;
+                    return (
+                      <div key={i} className={`border-2 border-black p-3 flex flex-col min-h-[120px] ${isEmpty ? 'bg-gray-50 opacity-60' : 'bg-white shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]'}`}>
+                        <div className="font-bold text-xs uppercase border-b-2 border-black pb-2 mb-3 flex justify-between items-end">
+                          <span className={i === 0 ? 'text-[#ea580c] !text-[#ea580c]' : ''}>{i === 0 ? "TOMORROW" : day.date.toLocaleDateString('en-US', { weekday: 'short' })}</span>
+                          <span className="text-[10px] text-gray-500 font-bold">{day.dateStr.slice(5).replace('-', '/')}</span>
+                        </div>
+                        
+                        {isEmpty ? (
+                          <div className="text-[10px] text-gray-400 uppercase tracking-widest text-center flex-1 flex items-center justify-center">[ CLEAR ]</div>
+                        ) : (
+                          <div className="space-y-3 flex-1">
+                            {day.day4.length > 0 && (
+                              <div>
+                                <span className="text-[9px] font-bold text-[#854d0e] bg-[#fefce8] px-1 border border-[#854d0e] uppercase !text-[#854d0e] !border-[#854d0e] !bg-[#fefce8]">Day 4</span>
+                                <div className="text-[10px] mt-1.5 space-y-1 text-black">
+                                  {day.day4.map(t => {
+                                    const [name, rawDur] = t.includes(' | ') ? t.split(' | ') : [t, null];
+                                    const duration = formatDuration(rawDur);
+                                    return (
+                                      <div key={t} className="leading-tight border-b border-gray-100 pb-1 mb-1 last:border-0 last:pb-0 last:mb-0">
+                                        • {name} {duration && <span className="text-[#ea580c] font-bold !text-[#ea580c]">[{duration}]</span>}
+                                      </div>
+                                    )
+                                  })}
+                                </div>
+                              </div>
+                            )}
+                            {day.day7.length > 0 && (
+                              <div>
+                                <span className="text-[9px] font-bold text-[#166534] bg-[#f0fdf4] px-1 border border-[#166534] uppercase !text-[#166534] !border-[#166534] !bg-[#f0fdf4]">Day 7</span>
+                                <div className="text-[10px] mt-1.5 space-y-1 text-black">
+                                  {day.day7.map(t => {
+                                    const [name, rawDur] = t.includes(' | ') ? t.split(' | ') : [t, null];
+                                    const duration = formatDuration(rawDur);
+                                    return (
+                                      <div key={t} className="leading-tight border-b border-gray-100 pb-1 mb-1 last:border-0 last:pb-0 last:mb-0">
+                                        • {name} {duration && <span className="text-[#ea580c] font-bold !text-[#ea580c]">[{duration}]</span>}
+                                      </div>
+                                    )
+                                  })}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+
             </div>
           )}
 
@@ -812,7 +888,6 @@ export default function Dashboard() {
               </div>
 
               {!state.planDeadline ? (
-                /* Setup Plan Form */
                 <div className="bg-white border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] p-4 sm:p-6">
                   <h2 className="text-sm font-bold uppercase mb-6 flex items-center gap-2">
                     <Target size={18} /> Initialize_New_Plan
