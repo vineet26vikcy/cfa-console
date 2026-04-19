@@ -167,6 +167,43 @@ const formatDuration = (dur: string | null) => {
   return dur;
 };
 
+const TopicLabel = ({ topic, isChecked, state, onToggle }: { topic: string, isChecked: boolean, state: any, onToggle: () => void }) => {
+  const [topicName, rawDuration] = topic.includes(' | ') ? topic.split(' | ') : [topic, null];
+  const duration = formatDuration(rawDuration);
+  
+  let labelClass = "flex items-start gap-3 py-3 px-2 sm:p-2 border border-transparent border-b-gray-200 cursor-pointer transition-colors bg-white hover:bg-gray-100";
+  let textClass = "text-black";
+  
+  if (isChecked && state) {
+    if (state.day7) { 
+      labelClass = "flex items-start gap-3 py-3 px-2 sm:p-2 border-2 border-[#166534] bg-[#f0fdf4] cursor-pointer transition-colors mb-1 shadow-sm !border-[#166534] !bg-[#f0fdf4]"; 
+      textClass = "text-[#166534] !text-[#166534]"; 
+    }
+    else if (state.day4) { 
+      labelClass = "flex items-start gap-3 py-3 px-2 sm:p-2 border-2 border-[#854d0e] bg-[#fefce8] cursor-pointer transition-colors mb-1 shadow-sm !border-[#854d0e] !bg-[#fefce8]"; 
+      textClass = "text-[#854d0e] !text-[#854d0e]"; 
+    }
+  }
+
+  return (
+    <label className={labelClass}>
+      <div className="pt-[2px] sm:pt-0.5">
+        <input type="checkbox" checked={isChecked} onChange={onToggle} className="w-4 h-4 sm:w-3.5 sm:h-3.5 accent-black border-black cursor-pointer rounded-none" />
+      </div>
+      <span className={`text-xs leading-snug flex-1 ${isChecked && !state?.day4 && !state?.day7 ? 'line-through opacity-50' : ''} ${textClass}`}>
+        {topicName}
+        {duration && <span className="text-[#ea580c] ml-2 font-bold whitespace-nowrap !text-[#ea580c]">[{duration}]</span>}
+      </span>
+      {isChecked && (
+        <div className="relative group ml-2">
+          <Info size={14} className="text-gray-400" />
+          <div className="absolute right-0 bottom-full mb-1 hidden group-hover:block z-50 bg-black text-white text-[10px] px-2 py-1 whitespace-nowrap">Done</div>
+        </div>
+      )}
+    </label>
+  );
+};
+
 // --- 2. HELPER FUNCTIONS ---
 const getLocalYMD = (dateObj: Date) => {
   const year = dateObj.getFullYear();
@@ -377,36 +414,24 @@ export default function Dashboard() {
     if (confirmed) state.setSyllabusType(type);
   };
 
-  // --- PLAN CALCULATIONS (FIXED: Leaves completed topics on today's list) ---
   const getPlanDetails = () => {
     if (!state.planDeadline) return null;
+    const planTopicsLeft = state.planTopics.filter(t => !completedTopics[t]);
     const todayStr = getTodayStr();
-    
-    // To prevent the "conveyor belt" effect where completing a topic pulls tomorrow's topic into today,
-    // we retain topics completed *today* in the active queue for calculation purposes.
-    const planTopicsActive = state.planTopics.filter(t => {
-      if (!completedTopics[t]) return true; // Not done yet
-      if (completedTopics[t] === todayStr) return true; // Done today (keep in list so it strikes through)
-      return false; // Done before today (remove from active list)
-    });
-
     let daysLeft = getDaysDiff(state.planDeadline, todayStr);
     if (daysLeft < 1) daysLeft = 1; 
 
-    const topicsPerDay = Math.ceil(planTopicsActive.length / daysLeft);
+    const topicsPerDay = Math.ceil(planTopicsLeft.length / daysLeft);
 
     const forecast = [];
     for(let i=0; i<4; i++) {
       const targetDate = new Date();
       targetDate.setDate(targetDate.getDate() + i);
-      const dayTopics = planTopicsActive.slice(i * topicsPerDay, (i + 1) * topicsPerDay);
+      const dayTopics = planTopicsLeft.slice(i * topicsPerDay, (i + 1) * topicsPerDay);
       forecast.push({ date: targetDate, isToday: i === 0, isTomorrow: i === 1, topics: dayTopics });
     }
 
-    // Items left should strictly reflect uncompleted items
-    const strictTopicsLeft = state.planTopics.filter(t => !completedTopics[t]).length;
-
-    return { daysLeft, topicsLeft: strictTopicsLeft, topicsPerDay, forecast };
+    return { daysLeft, topicsLeft: planTopicsLeft.length, topicsPerDay, forecast };
   };
 
   const handleCreatePlan = () => {
@@ -551,7 +576,7 @@ export default function Dashboard() {
           {activeTab === 'dashboard' && (
             <div className="space-y-6 sm:space-y-8 animate-in fade-in duration-300">
               
-              {/* Heatmap Card (True GitHub Flow) */}
+              {/* Heatmap Card */}
               <div className="bg-white border-2 border-black p-4 sm:p-5 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
                 <div className="flex justify-between items-center mb-4 border-b-2 border-black pb-2">
                   <div className="flex items-center gap-2">
@@ -562,7 +587,6 @@ export default function Dashboard() {
                 </div>
                 
                 <div className="overflow-x-auto pb-4 pt-2">
-                  {/* Months Header - Properly Z-Indexed and Aligned */}
                   <div className="flex text-[9px] text-gray-500 mb-2 ml-[24px] uppercase font-bold tracking-tighter h-3 relative">
                     {heatmapCols.map((col, i) => {
                       const isNewMonth = i === 0 || col[0].date.getMonth() !== heatmapCols[i-1][0].date.getMonth();
@@ -575,7 +599,6 @@ export default function Dashboard() {
                   </div>
 
                   <div className="flex flex-row gap-[2px] min-w-max">
-                    {/* Day Labels */}
                     <div className="flex flex-col gap-[2px] text-[9px] text-gray-500 text-right pr-2 w-[24px] font-bold uppercase tracking-tighter leading-[12px]">
                       <span className="h-[12px]"></span>
                       <span className="h-[12px]">Mon</span>
@@ -585,7 +608,6 @@ export default function Dashboard() {
                       <span className="h-[12px]">Fri</span>
                       <span className="h-[12px]"></span>
                     </div>
-                    {/* Columns */}
                     {heatmapCols.map((col, colIdx) => (
                       <div key={colIdx} className="flex flex-col gap-[2px] relative">
                         {col.map((day, dayIdx) => (
@@ -627,7 +649,7 @@ export default function Dashboard() {
                 </div>
               </div>
 
-              {/* 3-Level Syllabus Grid */}
+              {/* Syllabus Grid */}
               <div className="grid grid-cols-1 gap-4 pt-4 items-start">
                 {Object.entries(currentSyllabus).map(([subject, data]) => {
                   const subjectTopics = Object.values(data.sections).flat();
@@ -650,7 +672,6 @@ export default function Dashboard() {
                         </div>
                       </div>
 
-                      {/* LEVEL 2: TOPIC SECTIONS */}
                       {isExpanded && (
                         <div className="flex flex-col bg-white border-t-2 border-[#ea580c] p-2 sm:p-4 gap-3">
                           {Object.entries(data.sections).map(([sectionName, topics]) => {
@@ -667,17 +688,10 @@ export default function Dashboard() {
                                   </div>
                                 </div>
                                 
-                                {/* LEVEL 3: VIDEOS/MODULES */}
                                 {isSectionExpanded && (
                                   <div className="flex flex-col border-t-2 border-black bg-white">
                                     {topics.map((topic) => (
-                                      <TopicLabel 
-                                        key={topic} 
-                                        topic={topic} 
-                                        isChecked={!!completedTopics[topic]} 
-                                        state={reviewStates[topic]} 
-                                        onToggle={() => state.toggleTopic(topic)} 
-                                      />
+                                      <TopicLabel key={topic} topic={topic} isChecked={!!completedTopics[topic]} state={reviewStates[topic]} onToggle={() => state.toggleTopic(topic)} />
                                     ))}
                                   </div>
                                 )}
@@ -697,7 +711,6 @@ export default function Dashboard() {
           {activeTab === 'tracker' && (
             <div className="space-y-6 animate-in fade-in duration-300">
               
-              {/* Rule Explanation - Bloomberg Orange */}
               <div className="mb-6 border-b-2 border-black pb-4 flex flex-col sm:flex-row justify-between items-start gap-4">
                 <div>
                   <h1 className="text-lg font-bold uppercase tracking-tight mb-2">1-4-7_Spaced_Repetition</h1>
@@ -783,7 +796,6 @@ export default function Dashboard() {
               </div>
 
               {!state.planDeadline ? (
-                /* Setup Plan Form */
                 <div className="bg-white border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] p-4 sm:p-6">
                   <h2 className="text-sm font-bold uppercase mb-6 flex items-center gap-2">
                     <Target size={18} /> Initialize_New_Plan
@@ -1026,109 +1038,6 @@ export default function Dashboard() {
           )}
 
         </main>
-
-        {/* FIXED PLAN MODAL */}
-        {isPlanModalOpen && (
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-            <div className="bg-white border-4 border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] w-full max-w-lg max-h-[85vh] overflow-hidden flex flex-col">
-              <div className="p-4 border-b-2 border-black flex justify-between items-center bg-gray-100">
-                <h3 className="font-bold text-sm uppercase tracking-tight flex items-center gap-2">
-                  <CalendarDays size={18} /> Review_Projections
-                </h3>
-                <button onClick={() => setIsPlanModalOpen(false)} className="text-black hover:bg-gray-200 transition-colors p-2 sm:p-1 border border-transparent hover:border-black"><X size={18}/></button>
-              </div>
-              
-              <div className="p-4 overflow-y-auto space-y-4 bg-[#fafafa]">
-                {(() => {
-                  const today = new Date();
-                  today.setHours(0,0,0,0);
-                  
-                  let daysUntilSunday = 7 - today.getDay(); 
-                  if (daysUntilSunday === 0) daysUntilSunday = 7; 
-                  
-                  const daysArray = Array.from({length: daysUntilSunday + 1}, (_, i) => i);
-                  let hasAnyReviews = false;
-
-                  const planBlocks = daysArray.map(i => {
-                    const targetDate = new Date(today);
-                    targetDate.setDate(targetDate.getDate() + i);
-                    const targetDateStr = getLocalYMD(targetDate);
-                    
-                    const d4 = []; const d7 = [];
-                    for (const topic of activeCompletedTopics) {
-                      const diffDays = getDaysDiff(targetDateStr, completedTopics[topic]);
-                      if (diffDays === 3) d4.push(topic);
-                      if (diffDays === 6) d7.push(topic);
-                    }
-
-                    if (d4.length === 0 && d7.length === 0) return null;
-                    hasAnyReviews = true;
-
-                    return (
-                      <div key={i} className="border-2 border-black bg-white p-3">
-                        <div className="flex justify-between items-end border-b border-gray-200 pb-2 mb-2">
-                          <span className="font-bold text-xs sm:text-sm uppercase">
-                            {i === 0 ? "> TODAY" : i === 1 ? "> TOMORROW" : `> ${targetDate.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase()}`}
-                          </span>
-                          <span className="text-[10px] sm:text-xs text-gray-500 font-bold">{targetDateStr}</span>
-                        </div>
-                        
-                        {d4.length > 0 && (
-                          <div className="mb-3">
-                            <span className="text-[10px] font-bold text-[#854d0e] uppercase bg-[#fefce8] px-1 border border-[#854d0e] inline-block mb-1 !text-[#854d0e] !border-[#854d0e] !bg-[#fefce8]">Queue: Day_4</span>
-                            <ul className="space-y-3 sm:space-y-2">
-                              {d4.map(t => {
-                                const subject = getSubjectForTopic(t, currentSyllabus);
-                                const [topicName, rawDur] = t.includes(' | ') ? t.split(' | ') : [t, null];
-                                const duration = formatDuration(rawDur);
-                                return (
-                                  <li key={t} className="text-xs text-black before:content-['-'] before:mr-2 flex flex-col pl-3 -indent-3">
-                                    <span>
-                                      <span className="text-[#ea580c] mr-1 uppercase font-bold !text-[#ea580c]">[{subject}]</span>
-                                      {topicName}
-                                    </span>
-                                    {duration && <span className="text-[#ea580c] font-bold mt-0.5 !text-[#ea580c]">[{duration}]</span>}
-                                  </li>
-                                )
-                              })}
-                            </ul>
-                          </div>
-                        )}
-                        {d7.length > 0 && (
-                          <div>
-                            <span className="text-[10px] font-bold text-[#166534] uppercase bg-[#f0fdf4] px-1 border border-[#166534] inline-block mb-1 !text-[#166534] !border-[#166534] !bg-[#f0fdf4]">Queue: Day_7</span>
-                            <ul className="space-y-3 sm:space-y-2">
-                              {d7.map(t => {
-                                const subject = getSubjectForTopic(t, currentSyllabus);
-                                const [topicName, rawDur] = t.includes(' | ') ? t.split(' | ') : [t, null];
-                                const duration = formatDuration(rawDur);
-                                return (
-                                  <li key={t} className="text-xs text-black before:content-['-'] before:mr-2 flex flex-col pl-3 -indent-3">
-                                    <span>
-                                      <span className="text-[#ea580c] mr-1 uppercase font-bold !text-[#ea580c]">[{subject}]</span>
-                                      {topicName}
-                                    </span>
-                                    {duration && <span className="text-[#ea580c] font-bold mt-0.5 !text-[#ea580c]">[{duration}]</span>}
-                                  </li>
-                                )
-                              })}
-                            </ul>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  });
-
-                  if (!hasAnyReviews) {
-                    return <div className="text-center p-8 text-xs font-bold uppercase tracking-widest text-gray-400 border-2 border-dashed border-gray-300">No projections found</div>;
-                  }
-
-                  return planBlocks;
-                })()}
-              </div>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );
