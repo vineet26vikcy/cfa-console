@@ -301,7 +301,7 @@ const useStore = create<TrackerState>()(
       setPlan: (topics, deadline) => set(() => ({ planTopics: topics, planDeadline: deadline })),
       clearPlan: () => set(() => ({ planTopics: [], planDeadline: null })),
     }),
-    { name: 'cfa-mono-v7' }
+    { name: 'cfa-mono-v8' }
   )
 );
 
@@ -414,24 +414,34 @@ export default function Dashboard() {
     if (confirmed) state.setSyllabusType(type);
   };
 
+  // --- PLAN CALCULATIONS ---
   const getPlanDetails = () => {
     if (!state.planDeadline) return null;
-    const planTopicsLeft = state.planTopics.filter(t => !completedTopics[t]);
     const todayStr = getTodayStr();
+    
+    // KEEP topics completed TODAY in the active list so they cross out and stay visible
+    const planTopicsActive = state.planTopics.filter(t => {
+      if (!completedTopics[t]) return true; // Not done
+      if (completedTopics[t] === todayStr) return true; // Done today (keep visible)
+      return false; // Done before today (remove)
+    });
+
     let daysLeft = getDaysDiff(state.planDeadline, todayStr);
     if (daysLeft < 1) daysLeft = 1; 
 
-    const topicsPerDay = Math.ceil(planTopicsLeft.length / daysLeft);
+    const topicsPerDay = Math.ceil(planTopicsActive.length / daysLeft);
 
     const forecast = [];
     for(let i=0; i<4; i++) {
       const targetDate = new Date();
       targetDate.setDate(targetDate.getDate() + i);
-      const dayTopics = planTopicsLeft.slice(i * topicsPerDay, (i + 1) * topicsPerDay);
+      const dayTopics = planTopicsActive.slice(i * topicsPerDay, (i + 1) * topicsPerDay);
       forecast.push({ date: targetDate, isToday: i === 0, isTomorrow: i === 1, topics: dayTopics });
     }
 
-    return { daysLeft, topicsLeft: planTopicsLeft.length, topicsPerDay, forecast };
+    const strictTopicsLeft = state.planTopics.filter(t => !completedTopics[t]).length;
+
+    return { daysLeft, topicsLeft: strictTopicsLeft, topicsPerDay, forecast };
   };
 
   const handleCreatePlan = () => {
@@ -508,7 +518,6 @@ export default function Dashboard() {
         .theme-dark .hover\\:bg-gray-200:hover { background-color: #525252 !important; }
         .theme-dark .hover\\:text-black:hover { color: #ffffff !important; }
         .theme-dark .accent-black { accent-color: #f3f4f6 !important; }
-        .theme-dark .bg-\\[\\#ebedf0\\] { background-color: #262626 !important; border-color: #404040 !important; }
 
         .theme-rgb .app-wrapper { background-color: #000000 !important; color: #ffffff !important; }
         .theme-rgb .bg-\\[\\#fafafa\\] { background-color: #000000 !important; }
@@ -526,7 +535,6 @@ export default function Dashboard() {
         .theme-rgb .hover\\:bg-gray-50:hover { background-color: #18181b !important; }
         .theme-rgb .hover\\:bg-gray-100:hover { background-color: #27272a !important; }
         .theme-rgb .hover\\:bg-gray-200:hover { background-color: #3f3f46 !important; }
-        .theme-rgb .bg-\\[\\#ebedf0\\] { background-color: #18181b !important; border-color: #27272a !important; }
         
         @keyframes rgb-border { 0% {border-color: #ef4444;} 33% {border-color: #22c55e;} 66% {border-color: #3b82f6;} 100% {border-color: #ef4444;} }
         @keyframes rgb-shadow { 0% {box-shadow: 4px 4px 0px 0px #ef4444;} 33% {box-shadow: 4px 4px 0px 0px #22c55e;} 66% {box-shadow: 4px 4px 0px 0px #3b82f6;} 100% {box-shadow: 4px 4px 0px 0px #ef4444;} }
@@ -611,7 +619,7 @@ export default function Dashboard() {
                     {heatmapCols.map((col, colIdx) => (
                       <div key={colIdx} className="flex flex-col gap-[2px] relative">
                         {col.map((day, dayIdx) => (
-                          <div key={dayIdx} className={`w-[12px] h-[12px] border ${day.colorClass} relative group cursor-pointer`}>
+                          <div key={dayIdx} className={`w-[12px] h-[12px] rounded-[2px] ${day.colorClass} relative group cursor-pointer`}>
                             <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 hidden group-hover:block z-50 bg-black text-white text-[10px] px-2 py-1 whitespace-nowrap rounded-sm shadow-xl">
                               {day.isFuture ? `Future: ${day.dateStr}` : `[${day.count}] on ${day.dateStr}`}
                             </div>
@@ -624,11 +632,11 @@ export default function Dashboard() {
                 
                 <div className="flex flex-wrap items-center justify-end gap-2 mt-2 text-[9px] uppercase font-bold text-gray-500 tracking-tighter">
                   <span className="mr-1">Less</span>
-                  <div className="w-[12px] h-[12px] bg-gray-200 border border-gray-300"></div>
-                  <div className="w-[12px] h-[12px] bg-green-300 border border-green-400"></div>
-                  <div className="w-[12px] h-[12px] bg-green-500 border border-green-600"></div>
-                  <div className="w-[12px] h-[12px] bg-green-600 border border-green-700"></div>
-                  <div className="w-[12px] h-[12px] bg-green-800 border border-green-900"></div>
+                  <div className="w-[12px] h-[12px] rounded-[2px] bg-gray-200 border border-gray-300"></div>
+                  <div className="w-[12px] h-[12px] rounded-[2px] bg-green-300 border border-green-400"></div>
+                  <div className="w-[12px] h-[12px] rounded-[2px] bg-green-500 border border-green-600"></div>
+                  <div className="w-[12px] h-[12px] rounded-[2px] bg-green-600 border border-green-700"></div>
+                  <div className="w-[12px] h-[12px] rounded-[2px] bg-green-800 border border-green-900"></div>
                   <span className="ml-1">More</span>
                 </div>
               </div>
@@ -649,7 +657,7 @@ export default function Dashboard() {
                 </div>
               </div>
 
-              {/* Syllabus Grid */}
+              {/* 3-Level Syllabus Grid */}
               <div className="grid grid-cols-1 gap-4 pt-4 items-start">
                 {Object.entries(currentSyllabus).map(([subject, data]) => {
                   const subjectTopics = Object.values(data.sections).flat();
@@ -672,6 +680,7 @@ export default function Dashboard() {
                         </div>
                       </div>
 
+                      {/* LEVEL 2: TOPIC SECTIONS */}
                       {isExpanded && (
                         <div className="flex flex-col bg-white border-t-2 border-[#ea580c] p-2 sm:p-4 gap-3">
                           {Object.entries(data.sections).map(([sectionName, topics]) => {
@@ -688,10 +697,17 @@ export default function Dashboard() {
                                   </div>
                                 </div>
                                 
+                                {/* LEVEL 3: VIDEOS/MODULES */}
                                 {isSectionExpanded && (
                                   <div className="flex flex-col border-t-2 border-black bg-white">
                                     {topics.map((topic) => (
-                                      <TopicLabel key={topic} topic={topic} isChecked={!!completedTopics[topic]} state={reviewStates[topic]} onToggle={() => state.toggleTopic(topic)} />
+                                      <TopicLabel 
+                                        key={topic} 
+                                        topic={topic} 
+                                        isChecked={!!completedTopics[topic]} 
+                                        state={reviewStates[topic]} 
+                                        onToggle={() => state.toggleTopic(topic)} 
+                                      />
                                     ))}
                                   </div>
                                 )}
@@ -796,6 +812,7 @@ export default function Dashboard() {
               </div>
 
               {!state.planDeadline ? (
+                /* Setup Plan Form */
                 <div className="bg-white border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] p-4 sm:p-6">
                   <h2 className="text-sm font-bold uppercase mb-6 flex items-center gap-2">
                     <Target size={18} /> Initialize_New_Plan
@@ -938,31 +955,32 @@ export default function Dashboard() {
                               const subject = getSubjectForTopic(t, currentSyllabus);
                               const [topicName, rawDur] = t.includes(' | ') ? t.split(' | ') : [t, null];
                               const duration = formatDuration(rawDur);
+                              const isDone = !!completedTopics[t];
                               
                               if (dayPlan.isToday) {
                                 return (
-                                  <label key={tIdx} className="flex items-start gap-3 p-3 sm:p-2 bg-gray-50 border border-gray-200 border-l-4 border-l-black cursor-pointer hover:bg-gray-100 transition-colors">
+                                  <label key={tIdx} className={`flex items-start gap-3 p-3 sm:p-2 border cursor-pointer transition-colors ${isDone ? 'bg-green-50 border-green-200 border-l-4 border-l-green-500 hover:bg-green-100' : 'bg-gray-50 border-gray-200 border-l-4 border-l-black hover:bg-gray-100'}`}>
                                     <div className="pt-[2px]">
-                                      <input type="checkbox" checked={!!completedTopics[t]} onChange={() => state.toggleTopic(t)} className="w-4 h-4 sm:w-3.5 sm:h-3.5 accent-black rounded-none cursor-pointer" />
+                                      <input type="checkbox" checked={isDone} onChange={() => state.toggleTopic(t)} className={`w-4 h-4 sm:w-3.5 sm:h-3.5 rounded-none cursor-pointer ${isDone ? 'accent-green-600' : 'accent-black'}`} />
                                     </div>
-                                    <div className={`flex flex-col flex-1 leading-tight font-bold ${completedTopics[t] ? 'opacity-40 line-through' : 'text-black'}`}>
-                                      <span className={`mr-1 uppercase text-[10px] ${completedTopics[t] ? 'text-gray-500' : 'text-[#ea580c]'}`}>[{subject}]</span>
+                                    <div className={`flex flex-col flex-1 leading-tight font-bold ${isDone ? 'opacity-50 line-through text-green-900' : 'text-black'}`}>
+                                      <span className={`mr-1 uppercase text-[10px] ${isDone ? 'text-green-700' : 'text-[#ea580c] !text-[#ea580c]'}`}>[{subject}]</span>
                                       <span className="mt-1">{topicName}</span>
-                                      {duration && <span className={`font-bold mt-1 text-[10px] ${completedTopics[t] ? 'text-gray-500' : 'text-[#ea580c]'}`}>[{duration}]</span>}
+                                      {duration && <span className={`font-bold mt-1 text-[10px] ${isDone ? 'text-green-700' : 'text-[#ea580c] !text-[#ea580c]'}`}>[{duration}]</span>}
                                     </div>
                                   </label>
                                 );
                               }
 
                               return (
-                                <div key={tIdx} className={`text-xs p-2 leading-tight font-bold flex flex-col ${completedTopics[t] ? 'opacity-40 line-through border-l-2 border-l-gray-200 text-gray-400' : 'text-gray-500 border-l-2 border-l-gray-300'}`}>
-                                  <span className={`mr-1 uppercase ${completedTopics[t] ? 'text-gray-400' : 'text-[#ea580c]'}`}>[{subject}]</span>
+                                <div key={tIdx} className={`text-xs p-2 leading-tight font-bold flex flex-col ${isDone ? 'opacity-40 line-through border-l-2 border-l-gray-200 text-gray-400' : 'text-gray-500 border-l-2 border-l-gray-300'}`}>
+                                  <span className={`mr-1 uppercase ${isDone ? 'text-gray-400' : 'text-[#ea580c] !text-[#ea580c]'}`}>[{subject}]</span>
                                   <span className="block mt-1">{topicName}</span>
-                                  {duration && <span className={`font-bold block mt-1 ${completedTopics[t] ? 'text-gray-400' : 'text-[#ea580c]'}`}>[{duration}]</span>}
+                                  {duration && <span className={`font-bold block mt-1 ${isDone ? 'text-gray-400' : 'text-[#ea580c] !text-[#ea580c]'}`}>[{duration}]</span>}
                                 </div>
                               );
                             })}
-                            {dayPlan.isToday && <div className="text-[9px] text-gray-400 mt-2 italic">*Completed items remain until tomorrow's refresh.</div>}
+                            {dayPlan.isToday && <div className="text-[9px] text-gray-400 mt-2 italic">*Completed items will be removed at midnight.</div>}
                           </div>
                         )}
                       </div>
