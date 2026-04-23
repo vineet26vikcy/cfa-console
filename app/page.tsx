@@ -218,6 +218,10 @@ const getDaysDiff = (dateStr1: string, dateStr2: string) => {
   return Math.round((d1.getTime() - d2.getTime()) / (1000 * 60 * 60 * 24));
 };
 
+const formatPrintDate = (dateObj: Date) => {
+  return `${dateObj.getDate()} ${dateObj.toLocaleDateString('en-US', { month: 'long' })}`;
+};
+
 // --- 3. STATE MANAGEMENT (ZUSTAND) ---
 interface TrackerState {
   theme: 'light' | 'dark' | 'rgb';
@@ -1159,7 +1163,7 @@ export default function Dashboard() {
             <CalendarDays size={28} /> CFA REVISION WEEKLY SCHEDULE
           </h1>
           <span className="text-sm font-bold text-gray-500 uppercase">
-            Date From: {upcomingReviews[0].dateStr.slice(5).replace('-', '/')} To: {upcomingReviews[5].dateStr.slice(5).replace('-', '/')}
+            Date From: {formatPrintDate(upcomingReviews[0].date)} To: {formatPrintDate(upcomingReviews[5].date)}
           </span>
         </div>
         
@@ -1221,12 +1225,11 @@ export default function Dashboard() {
           <h2 className="text-lg font-bold uppercase mb-4 tracking-tighter">Timeline Overview</h2>
           <div className="grid grid-cols-6 gap-2">
             {upcomingReviews.map((day, idx) => {
-              const isStart = idx === 0;
-              const isEnd = idx === 5;
               let blockClass = "bg-white text-black border-2 border-black";
               
-              if (isStart) blockClass = "bg-blue-600 !text-white border-2 border-blue-800";
-              if (isEnd) blockClass = "bg-green-500 !text-white border-2 border-green-700";
+              if (idx === 0) blockClass = "bg-blue-600 !text-white border-2 border-blue-800";
+              else if (idx === 3 || idx === 4) blockClass = "bg-[#32cd32] !text-white border-2 border-[#166534]";
+              else if (idx === 5) blockClass = "bg-[#dc2626] !text-white border-2 border-[#991b1b]";
 
               return (
                 <div key={idx} className={`flex flex-col items-center justify-center p-2 ${blockClass}`}>
