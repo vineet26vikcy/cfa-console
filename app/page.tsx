@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { BookOpen, Calendar, ChevronRight, ChevronDown, Info, CalendarDays, CheckCircle2, Upload, Download, PieChart, Target, ListTodo, Settings, AlertTriangle } from 'lucide-react';
+import { BookOpen, Calendar, ChevronRight, ChevronDown, Info, CalendarDays, CheckCircle2, Upload, Download, PieChart, Target, ListTodo, Settings, AlertTriangle, Printer } from 'lucide-react';
 
 // --- 1. DATA & WEIGHTAGE ---
 
@@ -517,7 +517,7 @@ export default function Dashboard() {
   return (
     <div className={`theme-${state.theme}`}>
       
-      {/* DYNAMIC THEME ENGINE */}
+      {/* DYNAMIC THEME ENGINE & PRINT STYLES */}
       <style dangerouslySetInnerHTML={{__html: `
         .theme-dark .app-wrapper { background-color: #0a0a0a !important; color: #f3f4f6 !important; }
         .theme-dark .bg-\\[\\#fafafa\\] { background-color: #0a0a0a !important; }
@@ -574,9 +574,18 @@ export default function Dashboard() {
         .theme-rgb .logo-text { background: linear-gradient(to right, #ef4444, #22c55e, #3b82f6, #ef4444); background-size: 300%; -webkit-background-clip: text; color: transparent !important; animation: rgb-text 4s linear infinite; }
         .hide-scrollbar::-webkit-scrollbar { display: none; }
         .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+        /* PRINT STYLES */
+        @media print {
+          body, html { background-color: white !important; margin: 0; padding: 0; }
+          @page { size: A4 portrait; margin: 15mm; }
+          * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+          .print-break-avoid { break-inside: avoid; }
+        }
       `}} />
 
-      <div className="app-wrapper min-h-screen bg-[#fafafa] text-black font-mono text-xs sm:text-sm selection:bg-black selection:text-white pb-20 transition-colors duration-300">
+      {/* --- STANDARD WEB APP WRAPPER --- */}
+      <div className="print:hidden app-wrapper min-h-screen bg-[#fafafa] text-black font-mono text-xs sm:text-sm selection:bg-black selection:text-white pb-20 transition-colors duration-300">
         
         {/* Top Navigation */}
         <nav className="bg-white border-b-2 border-black px-4 md:px-8 py-3 flex justify-between items-center sticky top-0 z-30">
@@ -722,9 +731,9 @@ export default function Dashboard() {
                                   </div>
                                 </div>
                                 
-                                {/* MINIMAL SUBTOPIC PROGRESS BAR */}
+                                {/* GREEN MINIMAL SUBTOPIC PROGRESS BAR */}
                                 <div className="w-full h-[3px] bg-gray-200">
-                                  <div className="h-full bg-[#ea580c] transition-all duration-500" style={{ width: `${secPct}%` }} />
+                                  <div className="h-full bg-green-500 transition-all duration-500" style={{ width: `${secPct}%` }} />
                                 </div>
                                 
                                 {isSectionExpanded && (
@@ -819,9 +828,14 @@ export default function Dashboard() {
 
               {/* 10-DAY FORECAST ENGINE */}
               <div className="mt-12 border-t-4 border-black pt-8">
-                <h2 className="text-sm font-bold uppercase tracking-tight mb-6 flex items-center gap-2 text-[#ea580c] !text-[#ea580c]">
-                  <CalendarDays size={20} /> Upcoming_Revision_Topics (Next 10 Days)
-                </h2>
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
+                  <h2 className="text-sm font-bold uppercase tracking-tight flex items-center gap-2 text-[#ea580c] !text-[#ea580c]">
+                    <CalendarDays size={20} /> Upcoming_Revision_Topics (Next 10 Days)
+                  </h2>
+                  <button onClick={() => window.print()} className="bg-black text-white px-4 py-2 text-xs font-bold uppercase tracking-tight hover:bg-gray-800 transition-colors flex items-center gap-2 shadow-[2px_2px_0px_0px_rgba(0,0,0,0.5)]">
+                    <Printer size={16} /> Print_A4_Schedule
+                  </button>
+                </div>
                 
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
                   {upcomingReviews.map((day, i) => {
@@ -1137,6 +1151,70 @@ export default function Dashboard() {
 
         </main>
       </div>
+
+      {/* --- PRINT ONLY VIEW (HIDDEN ON SCREEN, VISIBLE ON PAPER) --- */}
+      <div className="hidden print:block print:bg-white print:text-black w-full min-h-screen font-mono">
+        <div className="border-b-4 border-black pb-4 mb-6 flex justify-between items-end">
+          <h1 className="text-2xl font-bold uppercase tracking-tighter flex items-center gap-2">
+            <CalendarDays size={28} /> CFA_REVISION_MANIFEST
+          </h1>
+          <span className="text-sm font-bold text-gray-500 uppercase">Generated: {getTodayStr()}</span>
+        </div>
+        
+        <div className="grid grid-cols-2 gap-x-6 gap-y-6">
+          {upcomingReviews.map((day, i) => {
+            const isEmpty = day.day4.length === 0 && day.day7.length === 0;
+            return (
+              <div key={i} className="border-2 border-black p-4 flex flex-col min-h-[150px] print-break-avoid">
+                <div className="font-bold text-sm uppercase border-b-2 border-black pb-2 mb-3 flex justify-between items-end">
+                  <span className="!text-[#ea580c]">{i === 0 ? "TOMORROW" : day.date.toLocaleDateString('en-US', { weekday: 'short' })}</span>
+                  <span className="text-xs text-gray-500 font-bold">{day.dateStr.slice(5).replace('-', '/')}</span>
+                </div>
+                
+                {isEmpty ? (
+                  <div className="text-xs text-gray-400 uppercase tracking-widest text-center flex-1 flex items-center justify-center">[ CLEAR ]</div>
+                ) : (
+                  <div className="space-y-4 flex-1">
+                    {day.day4.length > 0 && (
+                      <div>
+                        <span className="text-[10px] font-bold !text-[#854d0e] !bg-[#fefce8] px-1 border !border-[#854d0e] uppercase inline-block mb-1">Day 4</span>
+                        <div className="text-xs space-y-1.5 text-black">
+                          {day.day4.map(t => {
+                            const [name, rawDur] = t.includes(' | ') ? t.split(' | ') : [t, null];
+                            const duration = formatDuration(rawDur);
+                            return (
+                              <div key={t} className="leading-snug border-b border-gray-100 pb-1.5 mb-1.5 last:border-0 last:pb-0 last:mb-0">
+                                • {name} {duration && <span className="!text-[#ea580c] font-bold">[{duration}]</span>}
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )}
+                    {day.day7.length > 0 && (
+                      <div>
+                        <span className="text-[10px] font-bold !text-[#166534] !bg-[#f0fdf4] px-1 border !border-[#166534] uppercase inline-block mb-1">Day 7</span>
+                        <div className="text-xs space-y-1.5 text-black">
+                          {day.day7.map(t => {
+                            const [name, rawDur] = t.includes(' | ') ? t.split(' | ') : [t, null];
+                            const duration = formatDuration(rawDur);
+                            return (
+                              <div key={t} className="leading-snug border-b border-gray-100 pb-1.5 mb-1.5 last:border-0 last:pb-0 last:mb-0">
+                                • {name} {duration && <span className="!text-[#ea580c] font-bold">[{duration}]</span>}
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      </div>
+
     </div>
   );
 }
