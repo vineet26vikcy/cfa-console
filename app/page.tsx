@@ -580,7 +580,7 @@ export default function Dashboard() {
           body, html { background-color: white !important; margin: 0; padding: 0; }
           @page { size: A4 portrait; margin: 15mm; }
           * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-          .print-break-avoid { break-inside: avoid; }
+          .page-break-inside-avoid { break-inside: avoid; }
         }
       `}} />
 
@@ -1156,16 +1156,18 @@ export default function Dashboard() {
       <div className="hidden print:block print:bg-white print:text-black w-full min-h-screen font-mono">
         <div className="border-b-4 border-black pb-4 mb-6 flex justify-between items-end">
           <h1 className="text-2xl font-bold uppercase tracking-tighter flex items-center gap-2">
-            <CalendarDays size={28} /> CFA_REVISION_MANIFEST
+            <CalendarDays size={28} /> CFA REVISION WEEKLY SCHEDULE
           </h1>
-          <span className="text-sm font-bold text-gray-500 uppercase">Generated: {getTodayStr()}</span>
+          <span className="text-sm font-bold text-gray-500 uppercase">
+            Date From: {upcomingReviews[0].dateStr.slice(5).replace('-', '/')} To: {upcomingReviews[9].dateStr.slice(5).replace('-', '/')}
+          </span>
         </div>
         
         <div className="grid grid-cols-2 gap-x-6 gap-y-6">
           {upcomingReviews.map((day, i) => {
             const isEmpty = day.day4.length === 0 && day.day7.length === 0;
             return (
-              <div key={i} className="border-2 border-black p-4 flex flex-col min-h-[150px] print-break-avoid">
+              <div key={i} className="border-2 border-black p-4 flex flex-col min-h-[150px] page-break-inside-avoid">
                 <div className="font-bold text-sm uppercase border-b-2 border-black pb-2 mb-3 flex justify-between items-end">
                   <span className="!text-[#ea580c]">{i === 0 ? "TOMORROW" : day.date.toLocaleDateString('en-US', { weekday: 'short' })}</span>
                   <span className="text-xs text-gray-500 font-bold">{day.dateStr.slice(5).replace('-', '/')}</span>
@@ -1213,6 +1215,29 @@ export default function Dashboard() {
             )
           })}
         </div>
+
+        {/* 10-DAY CHUNKY CALENDAR BLOCK (PRINT ONLY) */}
+        <div className="mt-8 pt-6 border-t-4 border-black page-break-inside-avoid">
+          <h2 className="text-lg font-bold uppercase mb-4 tracking-tighter">Timeline Overview</h2>
+          <div className="grid grid-cols-5 gap-2">
+            {upcomingReviews.map((day, idx) => {
+              const isStart = idx === 0;
+              const isEnd = idx === upcomingReviews.length - 1;
+              let blockClass = "bg-white text-black border-2 border-black";
+              
+              if (isStart) blockClass = "bg-blue-600 !text-white border-2 border-blue-800";
+              if (isEnd) blockClass = "bg-green-500 !text-white border-2 border-green-700";
+
+              return (
+                <div key={idx} className={`flex flex-col items-center justify-center p-3 ${blockClass}`}>
+                  <span className="text-xs font-bold uppercase mb-1">{day.date.toLocaleDateString('en-US', { weekday: 'short' })}</span>
+                  <span className="text-3xl font-black">{day.date.getDate()}</span>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+
       </div>
 
     </div>
