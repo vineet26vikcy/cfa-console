@@ -412,7 +412,7 @@ export default function Dashboard() {
     const today = new Date();
     today.setHours(0,0,0,0);
 
-    for (let i = 1; i <= 10; i++) {
+    for (let i = 1; i <= 6; i++) {
       const targetDate = new Date(today);
       targetDate.setDate(targetDate.getDate() + i);
       const targetDateStr = getLocalYMD(targetDate);
@@ -826,18 +826,18 @@ export default function Dashboard() {
                 </div>
               </div>
 
-              {/* 10-DAY FORECAST ENGINE */}
+              {/* 6-DAY FORECAST ENGINE */}
               <div className="mt-12 border-t-4 border-black pt-8">
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
                   <h2 className="text-sm font-bold uppercase tracking-tight flex items-center gap-2 text-[#ea580c] !text-[#ea580c]">
-                    <CalendarDays size={20} /> Upcoming_Revision_Topics (Next 10 Days)
+                    <CalendarDays size={20} /> Upcoming_Revision_Topics (Next 6 Days)
                   </h2>
                   <button onClick={() => window.print()} className="bg-black text-white px-4 py-2 text-xs font-bold uppercase tracking-tight hover:bg-gray-800 transition-colors flex items-center gap-2 shadow-[2px_2px_0px_0px_rgba(0,0,0,0.5)]">
                     <Printer size={16} /> Print_A4_Schedule
                   </button>
                 </div>
                 
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                   {upcomingReviews.map((day, i) => {
                     const isEmpty = day.day4.length === 0 && day.day7.length === 0;
                     return (
@@ -1159,15 +1159,15 @@ export default function Dashboard() {
             <CalendarDays size={28} /> CFA REVISION WEEKLY SCHEDULE
           </h1>
           <span className="text-sm font-bold text-gray-500 uppercase">
-            Date From: {upcomingReviews[0].dateStr.slice(5).replace('-', '/')} To: {upcomingReviews[9].dateStr.slice(5).replace('-', '/')}
+            Date From: {upcomingReviews[0].dateStr.slice(5).replace('-', '/')} To: {upcomingReviews[5].dateStr.slice(5).replace('-', '/')}
           </span>
         </div>
         
-        <div className="grid grid-cols-2 gap-x-6 gap-y-6">
+        <div className="grid grid-cols-2 gap-x-4 gap-y-4">
           {upcomingReviews.map((day, i) => {
             const isEmpty = day.day4.length === 0 && day.day7.length === 0;
             return (
-              <div key={i} className="border-2 border-black p-4 flex flex-col min-h-[150px] page-break-inside-avoid">
+              <div key={i} className="border-2 border-black p-3 flex flex-col min-h-[100px] page-break-inside-avoid">
                 <div className="font-bold text-sm uppercase border-b-2 border-black pb-2 mb-3 flex justify-between items-end">
                   <span className="!text-[#ea580c]">{i === 0 ? "TOMORROW" : day.date.toLocaleDateString('en-US', { weekday: 'short' })}</span>
                   <span className="text-xs text-gray-500 font-bold">{day.dateStr.slice(5).replace('-', '/')}</span>
@@ -1216,22 +1216,23 @@ export default function Dashboard() {
           })}
         </div>
 
-        {/* 10-DAY CHUNKY CALENDAR BLOCK (PRINT ONLY) */}
+        {/* 6-DAY CHUNKY CALENDAR BLOCK (PRINT ONLY) */}
         <div className="mt-8 pt-6 border-t-4 border-black page-break-inside-avoid">
           <h2 className="text-lg font-bold uppercase mb-4 tracking-tighter">Timeline Overview</h2>
-          <div className="grid grid-cols-5 gap-2">
+          <div className="grid grid-cols-6 gap-2">
             {upcomingReviews.map((day, idx) => {
               const isStart = idx === 0;
-              const isEnd = idx === upcomingReviews.length - 1;
+              const isEnd = idx === 5;
               let blockClass = "bg-white text-black border-2 border-black";
               
               if (isStart) blockClass = "bg-blue-600 !text-white border-2 border-blue-800";
               if (isEnd) blockClass = "bg-green-500 !text-white border-2 border-green-700";
 
               return (
-                <div key={idx} className={`flex flex-col items-center justify-center p-3 ${blockClass}`}>
-                  <span className="text-xs font-bold uppercase mb-1">{day.date.toLocaleDateString('en-US', { weekday: 'short' })}</span>
-                  <span className="text-3xl font-black">{day.date.getDate()}</span>
+                <div key={idx} className={`flex flex-col items-center justify-center p-2 ${blockClass}`}>
+                  <span className="text-[10px] font-bold uppercase mb-0.5">{day.date.toLocaleDateString('en-US', { month: 'short' })}</span>
+                  <span className="text-2xl font-black leading-none my-0.5">{day.date.getDate()}</span>
+                  <span className="text-[10px] font-bold uppercase mt-0.5">{day.date.toLocaleDateString('en-US', { weekday: 'short' })}</span>
                 </div>
               )
             })}
