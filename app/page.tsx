@@ -301,7 +301,7 @@ const useStore = create<TrackerState>()(
       setPlan: (topics, deadline) => set(() => ({ planTopics: topics, planDeadline: deadline })),
       clearPlan: () => set(() => ({ planTopics: [], planDeadline: null })),
     }),
-    { name: 'cfa-mono-v9' } // Bumped version to force a clean slate for safety
+    { name: 'cfa-mono-v9' }
   )
 );
 
@@ -393,7 +393,7 @@ export default function Dashboard() {
   const heatmapCols = generateHeatmapGrid();
   const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
-  // --- 1-4-7 REVIEWS CURRENT DAY ---
+  // --- 1-4-7 REVIEWS ---
   const getReviews = () => {
     const day4 = []; const day7 = [];
     const todayStr = getTodayStr();
@@ -407,7 +407,6 @@ export default function Dashboard() {
   };
   const { day4: day4Reviews, day7: day7Reviews } = getReviews();
 
-  // --- 1-4-7 NEXT 10 DAYS FORECAST ---
   const getUpcomingReviews = () => {
     const upcoming = [];
     const today = new Date();
@@ -424,7 +423,6 @@ export default function Dashboard() {
       for (const topic of activeCompletedTopics) {
         const diffDays = getDaysDiff(targetDateStr, completedTopics[topic]);
         const st = reviewStates[topic] || { day4: false, day7: false };
-        // We only predict they WILL review it if they haven't already marked it done.
         if (diffDays === 3 && !st.day4) d4.push(topic);
         if (diffDays === 6 && !st.day7) d7.push(topic);
       }
@@ -445,11 +443,10 @@ export default function Dashboard() {
     if (!state.planDeadline) return null;
     const todayStr = getTodayStr();
     
-    // KEEP topics completed TODAY in the active list so they cross out and stay visible
     const planTopicsActive = state.planTopics.filter(t => {
-      if (!completedTopics[t]) return true; // Not done
-      if (completedTopics[t] === todayStr) return true; // Done today (keep visible)
-      return false; // Done before today (remove)
+      if (!completedTopics[t]) return true; 
+      if (completedTopics[t] === todayStr) return true; 
+      return false; 
     });
 
     let daysLeft = getDaysDiff(state.planDeadline, todayStr);
@@ -713,15 +710,21 @@ export default function Dashboard() {
                           {Object.entries(data.sections).map(([sectionName, topics]) => {
                             const isSectionExpanded = expandedTopicSections[sectionName];
                             const secCompleted = topics.filter(t => completedTopics[t]).length;
+                            const secPct = topics.length > 0 ? Math.round((secCompleted / topics.length) * 100) : 0;
                             
                             return (
-                              <div key={sectionName} className="border-2 border-black">
+                              <div key={sectionName} className="border-2 border-black flex flex-col">
                                 <div onClick={() => toggleTopicSection(sectionName)} className="flex items-center justify-between p-2 sm:p-3 bg-gray-100 hover:bg-gray-200 cursor-pointer transition-colors border-b border-transparent hover:border-black">
                                   <span className="font-bold text-[11px] sm:text-xs uppercase">{sectionName}</span>
                                   <div className="flex items-center gap-2">
                                     <span className="text-[10px] sm:text-xs font-bold text-gray-500">[{secCompleted}/{topics.length}]</span>
                                     {isSectionExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                                   </div>
+                                </div>
+                                
+                                {/* MINIMAL SUBTOPIC PROGRESS BAR */}
+                                <div className="w-full h-[3px] bg-gray-200">
+                                  <div className="h-full bg-[#ea580c] transition-all duration-500" style={{ width: `${secPct}%` }} />
                                 </div>
                                 
                                 {isSectionExpanded && (
@@ -951,9 +954,11 @@ export default function Dashboard() {
                                     <div className="bg-white flex flex-col">
                                       {topics.map(topic => {
                                         const isTopicSelected = draftPlanTopics.includes(topic);
+                                        const isDone = !!completedTopics[topic];
                                         const [topicName, rawDur] = topic.includes(' | ') ? topic.split(' | ') : [topic, null];
+                                        
                                         return (
-                                          <label key={topic} className="flex items-start gap-3 py-2 px-2 hover:bg-gray-100 cursor-pointer border-b border-gray-100 last:border-b-0">
+                                          <label key={topic} className={`flex items-start gap-3 py-2 px-2 cursor-pointer border-b border-gray-100 last:border-b-0 ${isDone ? 'bg-gray-50 hover:bg-gray-100' : 'hover:bg-gray-100'}`}>
                                             <div className="pt-[2px] sm:pt-0.5">
                                               <input
                                                 type="checkbox"
@@ -962,11 +967,11 @@ export default function Dashboard() {
                                                   if (isTopicSelected) setDraftPlanTopics(prev => prev.filter(t => t !== topic));
                                                   else setDraftPlanTopics(prev => [...prev, topic]);
                                                 }}
-                                                className="w-4 h-4 sm:w-3.5 sm:h-3.5 accent-black rounded-none cursor-pointer"
+                                                className={`w-4 h-4 sm:w-3.5 sm:h-3.5 rounded-none cursor-pointer ${isDone ? 'accent-gray-400' : 'accent-black'}`}
                                               />
                                             </div>
-                                            <span className="text-xs text-black leading-snug flex-1">
-                                              {topicName} {rawDur && <span className="text-[#ea580c] font-bold !text-[#ea580c]">[{formatDuration(rawDur)}]</span>}
+                                            <span className={`text-xs leading-snug flex-1 ${isDone ? 'text-gray-400 line-through opacity-70' : 'text-black'}`}>
+                                              {topicName} {rawDur && <span className={`${isDone ? 'text-gray-400' : 'text-[#ea580c] !text-[#ea580c]'} font-bold`}>[{formatDuration(rawDur)}]</span>}
                                             </span>
                                           </label>
                                         );
