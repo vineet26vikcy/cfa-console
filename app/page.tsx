@@ -595,7 +595,7 @@ export default function Dashboard() {
         <nav className="bg-white border-b-2 border-black px-4 md:px-8 py-3 flex justify-between items-center sticky top-0 z-30">
           <div className="flex items-center gap-3 pr-4">
             <div className="flex-shrink-0 overflow-hidden rounded-sm border border-gray-800">
-              <img src="/logo.png" alt="CFA Console Logo" className="w-7 h-7 object-cover" />
+              <img src="/logo.jpg" alt="CFA Console Logo" className="w-7 h-7 object-cover" />
             </div>
             <div className="relative">
               <span className="logo-text text-base font-bold uppercase tracking-tighter hidden sm:block cursor-pointer select-none whitespace-nowrap" onClick={() => setShowThemeMenu(!showThemeMenu)}>CFA_CONSOLE</span>
@@ -1165,7 +1165,7 @@ export default function Dashboard() {
             <CalendarDays size={28} /> CFA REVISION WEEKLY SCHEDULE
           </h1>
           <span className="text-sm font-bold text-gray-500 uppercase">
-            Date From: {upcomingReviews[0].date.getDate()} {upcomingReviews[0].date.toLocaleDateString('en-US', { month: 'long' })} To: {upcomingReviews[5].date.getDate()} {upcomingReviews[5].date.toLocaleDateString('en-US', { month: 'long' })}
+            {upcomingReviews[0].date.getDate()} {upcomingReviews[0].date.toLocaleDateString('en-US', { month: 'long' })} to {upcomingReviews[5].date.getDate()} {upcomingReviews[5].date.toLocaleDateString('en-US', { month: 'long' })}
           </span>
         </div>
         
