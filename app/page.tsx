@@ -594,7 +594,9 @@ export default function Dashboard() {
         {/* Top Navigation */}
         <nav className="bg-white border-b-2 border-black px-4 md:px-8 py-3 flex justify-between items-center sticky top-0 z-30">
           <div className="flex items-center gap-3 pr-4">
-            <div className="bg-black text-white p-1.5 rounded-sm flex-shrink-0"><BookOpen size={18} /></div>
+            <div className="flex-shrink-0 overflow-hidden rounded-sm border border-gray-800">
+              <img src="/logo.png" alt="CFA Console Logo" className="w-7 h-7 object-cover" />
+            </div>
             <div className="relative">
               <span className="logo-text text-base font-bold uppercase tracking-tighter hidden sm:block cursor-pointer select-none whitespace-nowrap" onClick={() => setShowThemeMenu(!showThemeMenu)}>CFA_CONSOLE</span>
               <span className="block sm:hidden absolute inset-0 w-8 h-8 -ml-10" onClick={() => setShowThemeMenu(!showThemeMenu)}/>
@@ -848,7 +850,7 @@ export default function Dashboard() {
                       <div key={i} className={`border-2 border-black p-3 flex flex-col min-h-[120px] ${isEmpty ? 'bg-gray-50 opacity-60' : 'bg-white shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]'}`}>
                         <div className="font-bold text-xs uppercase border-b-2 border-black pb-2 mb-3 flex justify-between items-end">
                           <span className={i === 0 ? 'text-[#ea580c] !text-[#ea580c]' : ''}>{i === 0 ? "TOMORROW" : day.date.toLocaleDateString('en-US', { weekday: 'short' })}</span>
-                          <span className="text-[10px] text-gray-500 font-bold">{day.dateStr.slice(5).replace('-', '/')}</span>
+                          <span className="text-[10px] text-gray-500 font-bold">{day.date.getDate()} {day.date.toLocaleDateString('en-US', { month: 'short' })}</span>
                         </div>
                         
                         {isEmpty ? (
@@ -1163,7 +1165,7 @@ export default function Dashboard() {
             <CalendarDays size={28} /> CFA REVISION WEEKLY SCHEDULE
           </h1>
           <span className="text-sm font-bold text-gray-500 uppercase">
-            Date From: {formatPrintDate(upcomingReviews[0].date)} To: {formatPrintDate(upcomingReviews[5].date)}
+            Date From: {upcomingReviews[0].date.getDate()} {upcomingReviews[0].date.toLocaleDateString('en-US', { month: 'long' })} To: {upcomingReviews[5].date.getDate()} {upcomingReviews[5].date.toLocaleDateString('en-US', { month: 'long' })}
           </span>
         </div>
         
@@ -1174,7 +1176,7 @@ export default function Dashboard() {
               <div key={i} className="border-2 border-black p-3 flex flex-col min-h-[100px] page-break-inside-avoid">
                 <div className="font-bold text-sm uppercase border-b-2 border-black pb-2 mb-3 flex justify-between items-end">
                   <span className="!text-[#ea580c]">{i === 0 ? "TOMORROW" : day.date.toLocaleDateString('en-US', { weekday: 'short' })}</span>
-                  <span className="text-xs text-gray-500 font-bold">{day.dateStr.slice(5).replace('-', '/')}</span>
+                  <span className="text-xs text-gray-500 font-bold">{day.date.getDate()} {day.date.toLocaleDateString('en-US', { month: 'short' })}</span>
                 </div>
                 
                 {isEmpty ? (
