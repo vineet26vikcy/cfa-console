@@ -594,8 +594,8 @@ export default function Dashboard() {
         {/* Top Navigation */}
         <nav className="bg-white border-b-2 border-black px-4 md:px-8 py-3 flex justify-between items-center sticky top-0 z-30">
           <div className="flex items-center gap-3 pr-4">
-            <div className="flex-shrink-0 overflow-hidden rounded-sm border border-gray-800">
-              <img src="/logo.jpg" alt="CFA Console Logo" className="w-7 h-7 object-cover" />
+            <div className="flex-shrink-0 overflow-hidden rounded-sm border border-gray-800 bg-black">
+              <img src="/logo.jpg" alt="CFA Console Logo" className="w-7 h-7 object-contain" />
             </div>
             <div className="relative">
               <span className="logo-text text-base font-bold uppercase tracking-tighter hidden sm:block cursor-pointer select-none whitespace-nowrap" onClick={() => setShowThemeMenu(!showThemeMenu)}>CFA_CONSOLE</span>
@@ -648,12 +648,12 @@ export default function Dashboard() {
 
                   <div className="flex flex-row gap-[2px] min-w-max">
                     <div className="flex flex-col gap-[2px] text-[9px] text-gray-500 text-right pr-2 w-[24px] font-bold uppercase tracking-tighter leading-[12px]">
-                      <span className="h-[12px]"></span>
                       <span className="h-[12px]">Mon</span>
                       <span className="h-[12px]"></span>
                       <span className="h-[12px]">Wed</span>
                       <span className="h-[12px]"></span>
                       <span className="h-[12px]">Fri</span>
+                      <span className="h-[12px]"></span>
                       <span className="h-[12px]"></span>
                     </div>
                     {heatmapCols.map((col, colIdx) => (
@@ -1165,7 +1165,7 @@ export default function Dashboard() {
             <CalendarDays size={28} /> CFA REVISION WEEKLY SCHEDULE
           </h1>
           <span className="text-sm font-bold text-gray-500 uppercase">
-            {upcomingReviews[0].date.getDate()} {upcomingReviews[0].date.toLocaleDateString('en-US', { month: 'long' })} to {upcomingReviews[5].date.getDate()} {upcomingReviews[5].date.toLocaleDateString('en-US', { month: 'long' })}
+            Date From: {upcomingReviews[0].date.getDate()} {upcomingReviews[0].date.toLocaleDateString('en-US', { month: 'long' })} To: {upcomingReviews[5].date.getDate()} {upcomingReviews[5].date.toLocaleDateString('en-US', { month: 'long' })}
           </span>
         </div>
         
