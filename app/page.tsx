@@ -167,6 +167,89 @@ const formatDuration = (dur: string | null) => {
   return dur;
 };
 
+// --- CUSTOM SVG RADAR CHART COMPONENT ---
+const RadarChart = ({ data }: { data: { subject: string, pct: number }[] }) => {
+  const size = 400;
+  const center = size / 2;
+  const radius = 120;
+  const angleStep = (Math.PI * 2) / data.length;
+
+  const getPoint = (val: number, index: number) => {
+    const angle = index * angleStep - Math.PI / 2;
+    const r = (val / 100) * radius;
+    return {
+      x: center + r * Math.cos(angle),
+      y: center + r * Math.sin(angle)
+    };
+  };
+
+  const dataPoints = data.map((d, i) => getPoint(d.pct, i));
+  const dataPath = dataPoints.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ') + ' Z';
+
+  const getShortName = (name: string) => {
+    const map: Record<string, string> = {
+      "Alternative Investments": "Alt Invts",
+      "Portfolio Management": "Port Mgmt",
+      "Corporate Issuers": "Corp Issuers",
+      "Equity Investments": "Equities",
+      "Quantitative Methods": "Quants",
+      "Fixed Income": "Fixed Inc",
+      "Economics": "Economics",
+      "Derivatives": "Derivs",
+      "Ethics": "Ethics",
+      "FSA": "FSA"
+    };
+    return map[name] || name;
+  };
+
+  return (
+    <svg viewBox={`0 0 ${size} ${size}`} className="w-full max-w-lg mx-auto overflow-visible font-mono mt-4">
+      {/* Background Webs */}
+      {[20, 40, 60, 80, 100].map((level) => {
+        const levelPoints = data.map((_, i) => getPoint(level, i));
+        const levelPath = levelPoints.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ') + ' Z';
+        return (
+          <path key={level} d={levelPath} fill="none" className="stroke-current text-gray-300" strokeWidth="1" />
+        );
+      })}
+
+      {/* Axes */}
+      {data.map((_, i) => {
+        const p = getPoint(100, i);
+        return <line key={i} x1={center} y1={center} x2={p.x} y2={p.y} className="stroke-current text-gray-300" strokeWidth="1" />
+      })}
+
+      {/* Data Polygon */}
+      <path d={dataPath} className="fill-[#ea580c] stroke-[#ea580c] fill-opacity-20" strokeWidth="2" />
+      {dataPoints.map((p, i) => (
+         <circle key={i} cx={p.x} cy={p.y} r="4" className="fill-[#ea580c]" />
+      ))}
+
+      {/* Labels */}
+      {data.map((d, i) => {
+        const labelP = getPoint(145, i); 
+        let textAnchor = "middle";
+        const cosVal = Math.cos(i * angleStep - Math.PI / 2);
+        if (Math.abs(cosVal) < 0.1) textAnchor = "middle";
+        else if (cosVal > 0) textAnchor = "start";
+        else textAnchor = "end";
+
+        const sinVal = Math.sin(i * angleStep - Math.PI / 2);
+        let yOffset = 0;
+        if (sinVal < -0.8) yOffset = -5;
+        if (sinVal > 0.8) yOffset = 5;
+
+        return (
+          <g key={i} transform={`translate(${labelP.x}, ${labelP.y + yOffset})`}>
+            <text textAnchor={textAnchor} className="text-[10px] fill-current text-gray-500 font-bold uppercase tracking-tighter">{getShortName(d.subject)}</text>
+            <text y="14" textAnchor={textAnchor} className="text-sm fill-current text-black font-bold">{d.pct}%</text>
+          </g>
+        )
+      })}
+    </svg>
+  )
+};
+
 const TopicLabel = ({ topic, isChecked, state, onToggle }: { topic: string, isChecked: boolean, state: any, onToggle: () => void }) => {
   const [topicName, rawDuration] = topic.includes(' | ') ? topic.split(' | ') : [topic, null];
   const duration = formatDuration(rawDuration);
@@ -216,10 +299,6 @@ const getDaysDiff = (dateStr1: string, dateStr2: string) => {
   const d1 = new Date(dateStr1); const d2 = new Date(dateStr2);
   d1.setHours(0,0,0,0); d2.setHours(0,0,0,0);
   return Math.round((d1.getTime() - d2.getTime()) / (1000 * 60 * 60 * 24));
-};
-
-const formatPrintDate = (dateObj: Date) => {
-  return `${dateObj.getDate()} ${dateObj.toLocaleDateString('en-US', { month: 'long' })}`;
 };
 
 // --- 3. STATE MANAGEMENT (ZUSTAND) ---
@@ -322,6 +401,14 @@ export default function Dashboard() {
   const [draftPlanTopics, setDraftPlanTopics] = useState<string[]>([]);
   const [draftDeadline, setDraftDeadline] = useState<string>('');
 
+  // PIN SYNC STATE VARIABLES
+  const [setPinInput, setSetPinInput] = useState('');
+  const [activeSetPin, setActiveSetPin] = useState('');
+  const [enterPinInput, setEnterPinInput] = useState('');
+  const [activeEnterPin, setActiveEnterPin] = useState('');
+  const [syncStatus, setSyncStatus] = useState('');
+  const [isSyncing, setIsSyncing] = useState(false);
+
   const state = useStore();
   const currentSyllabus = state.syllabusType === 'parth' ? CFA_SYLLABUS_PARTH : CFA_SYLLABUS_OFFICIAL;
   const completedTopics = state.syllabusType === 'official' ? state.completedOfficial : state.completedParth;
@@ -346,6 +433,14 @@ export default function Dashboard() {
   const completionPct = Math.round((totalCompleted / getTotalTopicsCount(currentSyllabus)) * 100) || 0;
   const todayCompletedCount = dailyCompletions[getTodayStr()] || 0;
   const maxDaily = Math.max(4, ...Object.values(dailyCompletions));
+
+  // --- RADAR CHART DATA ---
+  const radarData = Object.entries(currentSyllabus).map(([subject, data]) => {
+    const subjectTopics = Object.values((data as any).sections).flat() as string[];
+    const subCompleted = subjectTopics.filter(t => completedTopics[t]).length;
+    const subPct = subjectTopics.length > 0 ? Math.round((subCompleted / subjectTopics.length) * 100) : 0;
+    return { subject, pct: subPct };
+  });
 
   // --- HEATMAP GENERATION ---
   const generateHeatmapGrid = () => {
@@ -477,6 +572,96 @@ export default function Dashboard() {
     state.setPlan(draftPlanTopics, draftDeadline);
   };
 
+  // --- CLOUD SYNC API HANDLERS ---
+  const handleSetPin = async (explicitPin?: string) => {
+    const targetPin = explicitPin || setPinInput;
+    if (!targetPin.trim()) return alert('Please enter a valid PIN');
+    setIsSyncing(true);
+    setSyncStatus('Pushing data to cloud...');
+
+    try {
+      const dataToExport = {
+        theme: state.theme, syllabusType: state.syllabusType,
+        completedOfficial: state.completedOfficial, dailyOfficial: state.dailyOfficial, reviewsOfficial: state.reviewsOfficial,
+        completedParth: state.completedParth, dailyParth: state.dailyParth, reviewsParth: state.reviewsParth,
+        planTopics: state.planTopics, planDeadline: state.planDeadline
+      };
+      
+      const localDataString = JSON.stringify(dataToExport);
+
+      const response = await fetch('/api/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'push', pin: targetPin, data: localDataString }),
+      });
+
+      const result = await response.json();
+      if (result.success) {
+        if (!explicitPin) setActiveSetPin(targetPin.trim().toLowerCase());
+        setSyncStatus('Data securely pinned to cloud!');
+      } else {
+        setSyncStatus(`Error: ${result.message}`);
+      }
+    } catch (err) {
+      setSyncStatus('Failed to sync with server.');
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  const handleEnterPin = async (explicitPin?: string) => {
+    const targetPin = explicitPin || enterPinInput;
+    if (!targetPin.trim()) return alert('Please enter a PIN');
+    
+    setIsSyncing(true);
+    setSyncStatus('Fetching data...');
+
+    try {
+      const response = await fetch('/api/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'pull', pin: targetPin }),
+      });
+
+      const result = await response.json();
+      if (result.success && result.data) {
+        const parsed = JSON.parse(result.data);
+        if (parsed.completedOfficial || parsed.completedParth) {
+          state.importData(parsed);
+        }
+        if (!explicitPin) {
+          setActiveEnterPin(targetPin.trim().toLowerCase());
+        }
+        setSyncStatus('Data successfully synced and loaded!');
+      } else {
+        setSyncStatus(`Error: ${result.message}`);
+      }
+    } catch (err) {
+      setSyncStatus('Failed to retrieve sync data.');
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  // Continuous Background Polling (Laptop B pulls every 7 seconds)
+  useEffect(() => {
+    if (!activeEnterPin) return;
+    const interval = setInterval(() => {
+      handleEnterPin(activeEnterPin);
+    }, 7000);
+    return () => clearInterval(interval);
+  }, [activeEnterPin]);
+
+  // Auto-Update Trigger (Laptop A pushes 2 seconds after making a change)
+  useEffect(() => {
+    if (!activeSetPin) return;
+    const delayDebounce = setTimeout(() => {
+      handleSetPin(activeSetPin);
+    }, 2000);
+    return () => clearTimeout(delayDebounce);
+  }, [state.completedOfficial, state.completedParth, state.reviewsOfficial, state.reviewsParth, state.planTopics]);
+
+
   const handleExport = () => {
     const dataToExport = {
       theme: state.theme, syllabusType: state.syllabusType,
@@ -595,7 +780,7 @@ export default function Dashboard() {
         <nav className="bg-white border-b-2 border-black px-4 md:px-8 py-3 flex justify-between items-center sticky top-0 z-30">
           <div className="flex items-center gap-3 pr-4">
             <div className="flex-shrink-0 overflow-hidden rounded-sm border border-gray-800 bg-black">
-              <img src="/logo.jpg" alt="CFA Console Logo" className="w-7 h-7 object-contain" />
+              <img src="/logo.png" alt="CFA Console Logo" className="w-7 h-7 object-contain" />
             </div>
             <div className="relative">
               <span className="logo-text text-base font-bold uppercase tracking-tighter hidden sm:block cursor-pointer select-none whitespace-nowrap" onClick={() => setShowThemeMenu(!showThemeMenu)}>CFA_CONSOLE</span>
@@ -1095,6 +1280,21 @@ export default function Dashboard() {
           {activeTab === 'data' && (
             <div className="space-y-6 animate-in fade-in duration-300">
               
+              {/* RADAR CHART BLOCK */}
+              <div className="relative bg-white border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] p-4 sm:p-5">
+                <div className="flex items-center gap-2 mb-4 border-b-2 border-black pb-2">
+                  <Target size={18} />
+                  <h2 className="text-sm font-bold uppercase tracking-tight">Subject_Mastery_Radar</h2>
+                </div>
+                
+                <div className="absolute top-4 right-4 text-right hidden sm:block">
+                   <div className="text-[10px] font-bold text-gray-500 uppercase tracking-tighter">Avg_Completion</div>
+                   <div className="text-2xl font-black leading-none mt-1">{completionPct}%</div>
+                </div>
+
+                <RadarChart data={radarData} />
+              </div>
+
               <div className="bg-white border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] p-4 sm:p-5">
                 <div className="flex items-center gap-2 mb-4 border-b-2 border-black pb-2">
                   <Settings size={18} />
@@ -1116,6 +1316,91 @@ export default function Dashboard() {
                 </div>
               </div>
 
+              {/* CLOUD SYNC ENGINE */}
+              <div className="bg-white border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] p-4 sm:p-5">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b-2 border-black pb-2 mb-4">
+                  <div className="flex items-center gap-2">
+                    <Download size={18} />
+                    <h2 className="text-sm font-bold uppercase tracking-tight">Cloud_Cross-Device_Sync</h2>
+                  </div>
+                  <span className="bg-blue-600 text-white px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest">Live Auto-Sync Active</span>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Left Box: Host Sync */}
+                  <div className="bg-gray-50 p-4 border border-gray-200 flex flex-col justify-between">
+                    <div>
+                      <h4 className="text-xs font-bold uppercase mb-2">Host Sync (This Device)</h4>
+                      <p className="text-[10px] text-gray-500 mb-4">Set a custom key on your primary device to broadcast your live tracking data.</p>
+                    </div>
+                    <div>
+                      <div className="flex gap-2">
+                        <input 
+                          type="text" 
+                          placeholder="e.g., mysecretpass123" 
+                          value={setPinInput}
+                          onChange={(e) => setSetPinInput(e.target.value)}
+                          className="border border-black p-2 text-xs flex-1 bg-white focus:outline-none"
+                        />
+                        <button 
+                          onClick={() => handleSetPin()}
+                          disabled={isSyncing}
+                          className="bg-black hover:bg-gray-800 text-white px-4 py-2 text-xs font-bold uppercase transition-colors"
+                        >
+                          Set PIN
+                        </button>
+                      </div>
+                      {activeSetPin && (
+                        <div className="mt-3 text-[10px] text-green-600 font-bold uppercase flex items-center gap-2">
+                          <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+                          Live Broadcasting on PIN: <span className="bg-green-100 px-1 border border-green-200">{activeSetPin}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Right Box: Mirror Sync */}
+                  <div className="bg-gray-50 p-4 border border-gray-200 flex flex-col justify-between">
+                    <div>
+                      <h4 className="text-xs font-bold uppercase mb-2">Mirror Sync (Secondary Device)</h4>
+                      <p className="text-[10px] text-gray-500 mb-4">Enter the custom key set on your primary device to bind and auto-receive updates.</p>
+                    </div>
+                    <div>
+                      <div className="flex gap-2">
+                        <input 
+                          type="text" 
+                          placeholder="Enter active PIN" 
+                          value={enterPinInput}
+                          onChange={(e) => setEnterPinInput(e.target.value)}
+                          className="border border-black p-2 text-xs flex-1 bg-white focus:outline-none"
+                        />
+                        <button 
+                          onClick={() => handleEnterPin()}
+                          disabled={isSyncing}
+                          className="bg-white hover:bg-gray-100 text-black border-2 border-black px-4 py-2 text-xs font-bold uppercase transition-colors"
+                        >
+                          Connect
+                        </button>
+                      </div>
+                      {activeEnterPin && (
+                        <div className="mt-3 text-[10px] text-blue-600 font-bold uppercase flex items-center gap-2">
+                          <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
+                          Auto-polling active. Syncing changes live.
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Status Messenger */}
+                {syncStatus && (
+                  <div className="mt-4 text-[10px] text-center font-bold uppercase tracking-widest py-2 px-3 border border-black bg-white text-black">
+                    Status: {syncStatus}
+                  </div>
+                )}
+              </div>
+
+              {/* Legacy File Backup */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
                 <div className="bg-white border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] p-4 sm:p-5">
                   <div className="flex items-center gap-2 mb-4 border-b-2 border-black pb-2">
@@ -1134,18 +1419,18 @@ export default function Dashboard() {
 
                 <div className="bg-white border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] p-4 sm:p-5">
                   <div className="flex items-center gap-2 mb-4 border-b-2 border-black pb-2">
-                    <Download size={18} />
-                    <h2 className="text-sm font-bold uppercase tracking-tight">System_Data</h2>
+                    <Upload size={18} />
+                    <h2 className="text-sm font-bold uppercase tracking-tight">Legacy_File_Backup</h2>
                   </div>
-                  <p className="text-xs text-gray-600 mb-6">Export your local browser data to a JSON file to transfer between devices. Import an existing JSON file to restore progress.</p>
+                  <p className="text-xs text-gray-600 mb-6">Download a hard copy of your save data as a .json file for permanent safekeeping.</p>
                   <div className="flex flex-col gap-4">
-                    <button onClick={handleExport} className="w-full bg-black text-white px-4 py-4 sm:py-3 text-xs font-bold uppercase tracking-tight hover:bg-gray-800 transition-colors flex items-center justify-center gap-2">
-                      <Download size={16} /> Export_Backup.json
+                    <button onClick={handleExport} className="w-full bg-white border-2 border-black text-black px-4 py-3 text-xs font-bold uppercase tracking-tight hover:bg-gray-100 transition-colors flex items-center justify-center gap-2">
+                      <Download size={16} /> Download_Backup.json
                     </button>
                     <div className="relative">
                       <input type="file" accept=".json" ref={fileInputRef} onChange={handleImport} className="hidden" />
-                      <button onClick={() => fileInputRef.current?.click()} className="w-full bg-white border-2 border-black text-black px-4 py-4 sm:py-3 text-xs font-bold uppercase tracking-tight hover:bg-gray-100 transition-colors flex items-center justify-center gap-2">
-                        <Upload size={16} /> Import_Data
+                      <button onClick={() => fileInputRef.current?.click()} className="w-full bg-gray-50 border border-gray-300 text-gray-600 px-4 py-2 text-[10px] font-bold uppercase tracking-tight hover:bg-gray-100 transition-colors flex items-center justify-center gap-2">
+                        Upload_File_Backup
                       </button>
                     </div>
                   </div>
