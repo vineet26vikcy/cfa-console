@@ -60,7 +60,7 @@ const RadarChart = ({ data }: { data: { subject: string, pct: number }[] }) => {
 
       {data.map((d, i) => {
         const labelP = getPoint(145, i); 
-        let textAnchor = "middle";
+        let textAnchor: "middle" | "start" | "end" = "middle";
         const cosVal = Math.cos(i * angleStep - Math.PI / 2);
         if (Math.abs(cosVal) < 0.1) textAnchor = "middle";
         else if (cosVal > 0) textAnchor = "start";
