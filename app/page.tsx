@@ -1,11 +1,12 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from 'react';
-import { BookOpen, Calendar, ChevronRight, ChevronDown, Info, CalendarDays, CheckCircle2, Upload, Download, PieChart, Target, ListTodo, Settings, AlertTriangle, Printer, Link as LinkIcon } from 'lucide-react';
+import { BookOpen, Calendar, ChevronRight, ChevronDown, Info, CalendarDays, CheckCircle2, Upload, Download, PieChart, Target, ListTodo, Settings, AlertTriangle, Printer, Link as LinkIcon, FileText, Cloud, LogOut, RefreshCw } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import LZString from 'lz-string';
 
 import { useStore, getLocalYMD, getTodayStr, getDaysDiff } from './store';
+import { useCloudSync } from './useCloudSync';
 
 // --- CUSTOM SVG RADAR CHART COMPONENT ---
 const RadarChart = ({ data }: { data: { subject: string, pct: number }[] }) => {
@@ -132,7 +133,6 @@ const TopicLabel = ({ topic, isChecked, state, onToggle }: { topic: string, isCh
   );
 };
 
-// Utilities
 const getSubjectForTopic = (topicName: string, syllabusObj: any) => {
   for (const [subject, data] of Object.entries(syllabusObj)) {
     const sections = (data as any).sections;
@@ -168,11 +168,24 @@ export default function Dashboard() {
   const [draftDeadline, setDraftDeadline] = useState<string>('');
 
   // PEER TO PEER SYNC STATES
-  const [copied, setCopied] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
+  const [copiedCode, setCopiedCode] = useState(false);
   const [pastedLink, setPastedLink] = useState('');
   const [magicSyncStatus, setMagicSyncStatus] = useState<string | null>(null);
+  const [incomingPayload, setIncomingPayload] = useState<string | null>(null);
 
   const state = useStore();
+  const { session, login, logout, pushData, pullData, isSyncing, syncStatus: cloudSyncStatus } = useCloudSync();
+
+  // Handle Supabase Auto-Push on State Change
+  useEffect(() => {
+    if (!session) return;
+    const delayDebounce = setTimeout(() => {
+      pushData();
+    }, 2000); // Wait 2 seconds after user stops clicking to push
+    return () => clearTimeout(delayDebounce);
+  }, [session, state.completedOfficial, state.completedParth, state.reviewsOfficial, state.reviewsParth, state.planTopics]);
+
 
   useEffect(() => { 
     setMounted(true); 
@@ -182,22 +195,11 @@ export default function Dashboard() {
     setDraftDeadline(getLocalYMD(d));
 
     // Handle auto-sync if they paste the link directly into the browser URL bar
-    // FIX: Bypassing URLSearchParams completely to protect '+' symbols from becoming spaces!
-    const url = window.location.href;
-    if (url.includes('?data=')) {
-      try {
-        // Splitting explicitly to grab the raw data without any browser auto-decoding
-        const rawPayload = url.split('?data=')[1].split('#')[0].split('&')[0];
-        const decompressed = LZString.decompressFromEncodedURIComponent(rawPayload);
-        
-        if (decompressed) {
-          state.importData(JSON.parse(decompressed));
-          window.history.replaceState({}, document.title, window.location.pathname);
-          alert("Progress successfully synced from Magic Link!");
-        }
-      } catch(e) {
-        console.error("URL Sync Error", e);
-      }
+    const urlObj = new URL(window.location.href);
+    const syncParam = urlObj.searchParams.get('sync');
+    if (syncParam) {
+      setIncomingPayload(syncParam);
+      setActiveTab('data'); 
     }
 
     const loadSyllabus = async () => {
@@ -234,41 +236,43 @@ export default function Dashboard() {
   }, []);
 
   // --- PEER-TO-PEER SYNC ACTIONS ---
-  const handleGenerateLink = () => {
+  const getSyncPayload = () => {
     const dataToExport = {
       theme: state.theme, syllabusType: state.syllabusType,
       completedOfficial: state.completedOfficial, dailyOfficial: state.dailyOfficial, reviewsOfficial: state.reviewsOfficial,
       completedParth: state.completedParth, dailyParth: state.dailyParth, reviewsParth: state.reviewsParth,
       planTopics: state.planTopics, planDeadline: state.planDeadline
     };
-    
-    const compressed = LZString.compressToEncodedURIComponent(JSON.stringify(dataToExport));
-    const url = `${window.location.origin}/?data=${compressed}`;
-    
-    navigator.clipboard.writeText(url);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 3000);
+    return LZString.compressToBase64(JSON.stringify(dataToExport));
   };
 
-  const handleApplyPastedSync = () => {
-    if (!pastedLink.trim()) return;
-    
+  const handleGenerateLink = () => {
+    const payload = getSyncPayload();
+    const url = `${window.location.origin}/?sync=${encodeURIComponent(payload)}`;
+    navigator.clipboard.writeText(url);
+    setCopiedLink(true);
+    setTimeout(() => setCopiedLink(false), 3000);
+  };
+
+  const handleCopyRawCode = () => {
+    const payload = getSyncPayload();
+    navigator.clipboard.writeText(payload);
+    setCopiedCode(true);
+    setTimeout(() => setCopiedCode(false), 3000);
+  };
+
+  const executeSync = (base64Payload: string) => {
     try {
-      let payload = pastedLink.trim();
-      
-      // FIX: Bypassing standard URL parsing to protect the '+' symbol
-      if (payload.includes('?data=')) {
-        payload = payload.split('?data=')[1].split('#')[0].split('&')[0];
-      }
-      
-      const decompressed = LZString.decompressFromEncodedURIComponent(payload);
-      
+      const decompressed = LZString.decompressFromBase64(base64Payload);
       if (decompressed) {
         const parsed = JSON.parse(decompressed);
         state.importData(parsed);
         setMagicSyncStatus("SUCCESS");
-        setPastedLink('');
-        setTimeout(() => setMagicSyncStatus(null), 3000);
+        
+        setTimeout(() => {
+          window.location.replace('/');
+        }, 1200);
+
       } else {
         setMagicSyncStatus("INVALID_LINK");
         setTimeout(() => setMagicSyncStatus(null), 4000);
@@ -277,6 +281,28 @@ export default function Dashboard() {
       setMagicSyncStatus("ERROR_PARSING");
       setTimeout(() => setMagicSyncStatus(null), 4000);
     }
+  };
+
+  const handleApplyPastedSync = () => {
+    if (!pastedLink.trim()) return;
+    let base64Payload = pastedLink.trim();
+    try {
+      if (base64Payload.startsWith('http')) {
+        const urlObj = new URL(base64Payload);
+        const extracted = urlObj.searchParams.get('sync');
+        if (extracted) base64Payload = extracted;
+      }
+    } catch (e) {}
+    executeSync(base64Payload);
+  };
+
+  const handleConfirmUrlSync = () => {
+    if (incomingPayload) executeSync(incomingPayload);
+  };
+
+  const handleCancelUrlSync = () => {
+    setIncomingPayload(null);
+    window.history.replaceState({}, document.title, window.location.pathname);
   };
 
   if (!mounted || isLoadingSyllabus) {
@@ -1091,68 +1117,166 @@ export default function Dashboard() {
                 </div>
               </div>
 
-              {/* MAGIC LINK SYNC ENGINE */}
+              {/* CLOUD SYNC ENGINE (SUPABASE) */}
+              <div className="bg-white border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] p-4 sm:p-5">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b-2 border-black pb-2 mb-4">
+                  <div className="flex items-center gap-2">
+                    <Cloud size={18} />
+                    <h2 className="text-sm font-bold uppercase tracking-tight">Supabase_Cloud_Sync</h2>
+                  </div>
+                  <span className="bg-blue-600 text-white px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest">Auto-Sync Active</span>
+                </div>
+
+                {!session ? (
+                  <div className="bg-gray-50 border-2 border-black p-6 flex flex-col items-center justify-center text-center">
+                    <h3 className="font-bold text-sm uppercase mb-2">Connect Google Account</h3>
+                    <p className="text-xs text-gray-500 mb-6 max-w-sm">Sign in to securely sync your syllabus progress to your personal database. Changes sync automatically.</p>
+                    <button onClick={login} className="bg-white border-2 border-black px-6 py-3 text-xs font-bold uppercase tracking-widest hover:bg-gray-100 transition-colors flex items-center justify-center gap-2 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:translate-y-[2px] hover:translate-x-[2px] hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-y-[4px] active:translate-x-[4px] active:shadow-none">
+                       Sign In With Google
+                    </button>
+                  </div>
+                ) : (
+                  <div className="bg-gray-50 border-2 border-black p-4 flex flex-col gap-4">
+                    <div className="flex justify-between items-center border-b border-gray-300 pb-4">
+                      <div>
+                        <p className="text-[10px] text-gray-500 font-bold uppercase">Authenticated As</p>
+                        <p className="text-xs font-bold mt-1">{session.user.email}</p>
+                      </div>
+                      <button onClick={logout} className="text-red-600 border border-red-200 bg-red-50 px-3 py-1.5 text-[10px] font-bold uppercase hover:bg-red-100 transition-colors flex items-center gap-2">
+                        <LogOut size={12} /> Disconnect
+                      </button>
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                      <div className="flex items-center gap-2 text-xs font-bold uppercase">
+                        {isSyncing ? <RefreshCw size={14} className="animate-spin text-blue-600" /> : <CheckCircle2 size={14} className="text-green-600" />}
+                        <span className={isSyncing ? "text-blue-600" : "text-green-600"}>{cloudSyncStatus}</span>
+                      </div>
+                      
+                      <div className="flex w-full sm:w-auto gap-2">
+                        <button onClick={() => pullData(session.user.id)} disabled={isSyncing} className="flex-1 bg-white border-2 border-black px-3 py-2 text-[10px] font-bold uppercase hover:bg-gray-100 transition-colors disabled:opacity-50">
+                          Force Pull
+                        </button>
+                        <button onClick={pushData} disabled={isSyncing} className="flex-1 bg-black text-white px-3 py-2 text-[10px] font-bold uppercase hover:bg-gray-800 transition-colors disabled:opacity-50">
+                          Force Push
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* MAGIC LINK SYNC ENGINE (FALLBACK) */}
               <div className="bg-white border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] p-4 sm:p-5">
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b-2 border-black pb-2 mb-4">
                   <div className="flex items-center gap-2">
                     <LinkIcon size={18} />
                     <h2 className="text-sm font-bold uppercase tracking-tight">Peer-to-Peer Magic Sync</h2>
                   </div>
-                  <span className="bg-blue-600 text-white px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest">Vercel Ready (Serverless)</span>
+                  <span className="bg-gray-200 text-gray-600 px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest">Offline Fallback</span>
                 </div>
                 
-                <p className="text-[10px] sm:text-xs text-gray-500 leading-relaxed mb-6">
-                  Syncing across devices without a database. <b>Device A:</b> Generate a link. <b>Device B:</b> Paste the link below to instantly mirror your progress.
-                </p>
+                {/* INCOMING URL SYNC POPUP */}
+                {incomingPayload ? (
+                   <div className="space-y-4">
+                      <div className="bg-amber-50 border-2 border-amber-500 p-4">
+                        <h2 className="text-amber-700 font-bold uppercase tracking-tight flex items-center gap-2 mb-2 text-sm">
+                          <AlertTriangle size={20} /> Incoming Sync Detected
+                        </h2>
+                        <p className="text-xs text-amber-900 leading-relaxed font-bold opacity-80">
+                          You opened a magic link. Proceeding will instantly overwrite this device's progress.
+                        </p>
+                      </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {/* DEVICE A */}
-                  <div className="bg-gray-50 border-2 border-black p-4 flex flex-col justify-between">
-                    <div>
-                      <h3 className="font-bold text-xs uppercase mb-1 text-black">1. Export (Device A)</h3>
-                      <p className="text-[10px] text-gray-500 mb-4">Compress your progress into a secure URL.</p>
-                    </div>
-                    <button 
-                      onClick={handleGenerateLink} 
-                      className={`w-full px-4 py-3 text-xs font-bold uppercase tracking-widest transition-colors flex justify-center items-center gap-2 border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:translate-y-[2px] hover:translate-x-[2px] hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-y-[4px] active:translate-x-[4px] active:shadow-none ${copied ? 'bg-green-500 text-white border-green-500' : 'bg-white text-black'}`}
-                    >
-                      {copied ? <CheckCircle2 size={16} /> : <LinkIcon size={16} />}
-                      {copied ? "Link Copied!" : "Generate Link"}
-                    </button>
-                  </div>
+                      {magicSyncStatus === 'SUCCESS' ? (
+                        <div className="bg-green-100 border-2 border-green-600 p-4 text-center">
+                          <p className="text-green-800 font-bold uppercase text-sm flex items-center justify-center gap-2">
+                            <CheckCircle2 size={18} /> Syncing & Reloading...
+                          </p>
+                        </div>
+                      ) : magicSyncStatus === 'INVALID_LINK' || magicSyncStatus === 'ERROR_PARSING' ? (
+                        <div className="bg-red-50 border-2 border-red-500 p-4 text-center">
+                          <p className="text-red-700 font-bold uppercase text-sm">Corrupted Link</p>
+                          <p className="text-xs text-red-600 mt-1 mb-4">The sync payload is broken or incomplete.</p>
+                          <button onClick={handleCancelUrlSync} className="bg-white text-red-700 border-2 border-red-500 px-4 py-2 text-xs font-bold uppercase hover:bg-red-50">Clear Error</button>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col sm:flex-row gap-4">
+                          <button onClick={handleConfirmUrlSync} className="flex-1 bg-black text-white px-4 py-4 sm:py-3 text-xs font-bold uppercase tracking-widest hover:bg-gray-800 transition-colors flex justify-center items-center gap-2">
+                            <CheckCircle2 size={16} /> Confirm Sync
+                          </button>
+                          <button onClick={handleCancelUrlSync} className="flex-1 bg-white text-black border-2 border-black px-4 py-4 sm:py-3 text-xs font-bold uppercase tracking-widest hover:bg-gray-100 transition-colors flex justify-center items-center">
+                            Cancel
+                          </button>
+                        </div>
+                      )}
+                   </div>
+                ) : (
+                   <div className="space-y-6">
+                      <p className="text-[10px] sm:text-xs text-gray-500 leading-relaxed">
+                        Manually sync your progress across devices without an account. <b>Device A:</b> Generate a link. <b>Device B:</b> Paste the link to instantly mirror your progress.
+                      </p>
 
-                  {/* DEVICE B */}
-                  <div className="bg-gray-50 border-2 border-black p-4 flex flex-col justify-between">
-                    <div>
-                      <h3 className="font-bold text-xs uppercase mb-1 text-black">2. Import (Device B)</h3>
-                      <p className="text-[10px] text-gray-500 mb-4">Paste the link from your other device here.</p>
-                    </div>
-                    <div className="flex flex-col gap-2">
-                      <input 
-                        type="text" 
-                        placeholder="Paste URL here..." 
-                        value={pastedLink}
-                        onChange={(e) => setPastedLink(e.target.value)}
-                        className="w-full p-2 text-xs border border-gray-300 focus:border-black focus:outline-none bg-white"
-                      />
-                      <button 
-                        onClick={handleApplyPastedSync}
-                        className="w-full bg-black text-white px-4 py-2 text-xs font-bold uppercase tracking-widest hover:bg-gray-800 transition-colors flex justify-center items-center gap-2"
-                      >
-                        <Download size={14} /> Sync Data
-                      </button>
-                    </div>
-                  </div>
-                </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {/* DEVICE A */}
+                        <div className="bg-gray-50 border-2 border-black p-4 flex flex-col justify-between">
+                          <div>
+                            <h3 className="font-bold text-xs uppercase mb-1 text-black">1. Export (Device A)</h3>
+                            <p className="text-[10px] text-gray-500 mb-4">Compress your progress into a secure string.</p>
+                          </div>
+                          <div className="flex flex-col gap-2">
+                            <button 
+                              onClick={handleGenerateLink} 
+                              className={`w-full px-4 py-3 text-xs font-bold uppercase tracking-widest transition-colors flex justify-center items-center gap-2 border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:translate-y-[2px] hover:translate-x-[2px] hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-y-[4px] active:translate-x-[4px] active:shadow-none ${copiedLink ? 'bg-green-500 text-white border-green-500' : 'bg-white text-black'}`}
+                            >
+                              {copiedLink ? <CheckCircle2 size={16} /> : <LinkIcon size={16} />}
+                              {copiedLink ? "Link Copied!" : "Copy Magic Link"}
+                            </button>
+                            
+                            <button 
+                              onClick={handleCopyRawCode} 
+                              className={`w-full px-4 py-2 text-[10px] font-bold uppercase tracking-widest transition-colors flex justify-center items-center gap-2 border-2 border-gray-300 hover:border-black hover:bg-gray-200 ${copiedCode ? 'bg-green-100 text-green-700 border-green-500' : 'bg-transparent text-gray-500'}`}
+                            >
+                              {copiedCode ? <CheckCircle2 size={14} /> : <FileText size={14} />}
+                              {copiedCode ? "Raw Code Copied!" : "Copy Raw Code (Fallback)"}
+                            </button>
+                          </div>
+                        </div>
 
-                {/* Status Messenger */}
-                {magicSyncStatus && (
-                  <div className={`mt-4 text-[10px] font-bold uppercase tracking-widest py-3 px-4 border-2 flex items-center justify-center gap-2 ${
-                    magicSyncStatus === 'SUCCESS' ? 'bg-green-50 border-green-500 text-green-700' : 'bg-red-50 border-red-500 text-red-700'
-                  }`}>
-                    {magicSyncStatus === 'SUCCESS' ? <CheckCircle2 size={16} /> : <AlertTriangle size={16} />}
-                    {magicSyncStatus === 'SUCCESS' ? "Data Synced Successfully!" : "Error: Invalid or corrupted sync link."}
-                  </div>
+                        {/* DEVICE B */}
+                        <div className="bg-gray-50 border-2 border-black p-4 flex flex-col justify-between">
+                          <div>
+                            <h3 className="font-bold text-xs uppercase mb-1 text-black">2. Import (Device B)</h3>
+                            <p className="text-[10px] text-gray-500 mb-4">Paste the link OR raw code here.</p>
+                          </div>
+                          <div className="flex flex-col gap-2">
+                            <input 
+                              type="text" 
+                              placeholder="Paste URL or Raw Code..." 
+                              value={pastedLink}
+                              onChange={(e) => setPastedLink(e.target.value)}
+                              className="w-full p-2 text-xs border-2 border-gray-300 focus:border-black focus:outline-none bg-white"
+                            />
+                            <button 
+                              onClick={handleApplyPastedSync}
+                              className="w-full bg-black text-white px-4 py-3 text-xs font-bold uppercase tracking-widest hover:bg-gray-800 transition-colors flex justify-center items-center gap-2 shadow-[4px_4px_0px_0px_rgba(0,0,0,0.3)] hover:translate-y-[2px] hover:translate-x-[2px] hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,0.3)]"
+                            >
+                              <Download size={14} /> Sync Data
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Manual Status Messenger */}
+                      {magicSyncStatus && !incomingPayload && (
+                        <div className={`mt-4 text-[10px] font-bold uppercase tracking-widest py-3 px-4 border-2 flex items-center justify-center gap-2 ${
+                          magicSyncStatus === 'SUCCESS' ? 'bg-green-50 border-green-500 text-green-700' : 'bg-red-50 border-red-500 text-red-700'
+                        }`}>
+                          {magicSyncStatus === 'SUCCESS' ? <CheckCircle2 size={16} /> : <AlertTriangle size={16} />}
+                          {magicSyncStatus === 'SUCCESS' ? "Data Synced Successfully! Reloading..." : "Error: Invalid or corrupted sync payload."}
+                        </div>
+                      )}
+                   </div>
                 )}
               </div>
 
