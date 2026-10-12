@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from 'react';
-import { BookOpen, Calendar, ChevronRight, ChevronDown, Info, CalendarDays, CheckCircle2, Upload, Download, PieChart, Target, ListTodo, Settings, AlertTriangle, Printer, Link as LinkIcon, FileText, Trash2 } from 'lucide-react';
+import { BookOpen, Calendar, ChevronRight, ChevronDown, Info, CalendarDays, CheckCircle2, Upload, Download, PieChart, Target, ListTodo, Settings, AlertTriangle, Printer, Link as LinkIcon, FileText, Trash2, Square } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import LZString from 'lz-string';
 import { create } from 'zustand';
@@ -109,27 +109,26 @@ const useStore = create<TrackerState>()(
 
 // --- 3. CUSTOM UI COMPONENTS ---
 const RadarChart = ({ data }: { data: { subject: string, pct: number }[] }) => {
-  const size = 550; // Increased size to fit everything beautifully
+  const size = 550; 
   const center = size / 2;
   const radius = 170; 
 
-  // Strict ordering and color mapping to replicate the target image perfectly
   const orderedSubjects = [
     "Ethics", "FSA", "Equity Investments", "Fixed Income", "Portfolio Management",
     "Alternative Investments", "Quants", "Economics", "Corporate Issuers", "Derivatives"
   ];
 
   const colorMap: Record<string, string> = {
-    "Ethics": "#ef4444",                  // Red
-    "FSA": "#f97316",                     // Orange
-    "Equity Investments": "#eab308",      // Yellow
-    "Fixed Income": "#84cc16",            // Lime Green
-    "Portfolio Management": "#22c55e",    // Green
-    "Alternative Investments": "#14b8a6", // Teal
-    "Quants": "#3b82f6",                  // Blue
-    "Economics": "#6366f1",               // Indigo
-    "Corporate Issuers": "#a855f7",       // Purple
-    "Derivatives": "#ec4899"              // Pink
+    "Ethics": "#ef4444",                  
+    "FSA": "#f97316",                     
+    "Equity Investments": "#eab308",      
+    "Fixed Income": "#84cc16",            
+    "Portfolio Management": "#22c55e",    
+    "Alternative Investments": "#14b8a6", 
+    "Quants": "#3b82f6",                  
+    "Economics": "#6366f1",               
+    "Corporate Issuers": "#a855f7",       
+    "Derivatives": "#ec4899"              
   };
 
   const getShortName = (name: string) => {
@@ -148,7 +147,6 @@ const RadarChart = ({ data }: { data: { subject: string, pct: number }[] }) => {
     return map[name] || name;
   };
 
-  // Map the raw data into our strictly ordered array
   const orderedData = orderedSubjects.map(sub => {
     const match = data.find(d => d.subject === sub);
     return match || { subject: sub, pct: 0 };
@@ -166,21 +164,17 @@ const RadarChart = ({ data }: { data: { subject: string, pct: number }[] }) => {
 
   return (
     <svg viewBox={`0 0 ${size} ${size}`} className="w-full h-auto max-w-[500px] mx-auto overflow-visible font-sans drop-shadow-sm">
-      
-      {/* Background Webs (Octagons) */}
       {[20, 40, 60, 80, 100].map((level) => {
         const levelPoints = orderedData.map((_, i) => getPoint(level, i));
         const levelPath = levelPoints.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ') + ' Z';
         return <path key={level} d={levelPath} fill="none" className="stroke-gray-300" strokeWidth="1" />;
       })}
 
-      {/* Axis Lines radiating from center */}
       {orderedData.map((_, i) => {
         const p = getPoint(100, i);
         return <line key={`axis-${i}`} x1={center} y1={center} x2={p.x} y2={p.y} className="stroke-gray-300" strokeWidth="1" />
       })}
 
-      {/* The Colorful Data Polygon Slices (translucent fill) */}
       {dataPoints.map((p, i) => {
         const nextI = (i + 1) % dataPoints.length;
         const pNext = dataPoints[nextI];
@@ -189,7 +183,6 @@ const RadarChart = ({ data }: { data: { subject: string, pct: number }[] }) => {
         return <path key={`slice-${i}`} d={pathData} fill={subjectColor} fillOpacity="0.25" />;
       })}
 
-      {/* The Colored Outer Border segments */}
       {dataPoints.map((p, i) => {
         const nextI = (i + 1) % dataPoints.length;
         const pNext = dataPoints[nextI];
@@ -197,24 +190,20 @@ const RadarChart = ({ data }: { data: { subject: string, pct: number }[] }) => {
         return <line key={`border-${i}`} x1={p.x} y1={p.y} x2={pNext.x} y2={pNext.y} stroke={subjectColor} strokeWidth="2.5" />;
       })}
 
-      {/* Data Points (Dots on vertices) */}
       {dataPoints.map((p, i) => {
         const subjectColor = colorMap[orderedData[i].subject] || "#9ca3af";
         return <circle key={`dot-${i}`} cx={p.x} cy={p.y} r="5" fill={subjectColor} />;
       })}
 
-      {/* Labels */}
       {orderedData.map((d, i) => {
         const labelP = getPoint(135, i); 
         let textAnchor: "middle" | "start" | "end" = "middle";
         const cosVal = Math.cos(i * angleStep - Math.PI / 2);
         
-        // Strict text anchoring so text pushes away from the shape
         if (Math.abs(cosVal) < 0.1) textAnchor = "middle";
         else if (cosVal > 0) textAnchor = "start";
         else textAnchor = "end";
 
-        // Vertical bumping to prevent label collisions
         const sinVal = Math.sin(i * angleStep - Math.PI / 2);
         let yOffset = 0;
         if (sinVal < -0.8) yOffset = -5;
@@ -222,12 +211,8 @@ const RadarChart = ({ data }: { data: { subject: string, pct: number }[] }) => {
 
         return (
           <g key={`label-${i}`} transform={`translate(${labelP.x}, ${labelP.y + yOffset})`}>
-            <text textAnchor={textAnchor} className="text-[12px] fill-gray-800 font-medium tracking-tight">
-              {getShortName(d.subject)}
-            </text>
-            <text y="18" textAnchor={textAnchor} className="text-[16px] fill-black font-black">
-              {d.pct}%
-            </text>
+            <text textAnchor={textAnchor} className="text-[12px] fill-gray-800 font-medium tracking-tight">{getShortName(d.subject)}</text>
+            <text y="18" textAnchor={textAnchor} className="text-[16px] fill-black font-black">{d.pct}%</text>
           </g>
         )
       })}
@@ -319,7 +304,6 @@ export default function Dashboard() {
   const [draftPlanTopics, setDraftPlanTopics] = useState<string[]>([]);
   const [draftDeadline, setDraftDeadline] = useState<string>('');
 
-  // PEER TO PEER SYNC STATES
   const [copiedLink, setCopiedLink] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
   const [pastedLink, setPastedLink] = useState('');
@@ -359,7 +343,6 @@ export default function Dashboard() {
 
           if (!target[Subject]) target[Subject] = { weight: Weight, sections: {} };
           if (!target[Subject].sections[Section]) target[Subject].sections[Section] = [];
-          
           target[Subject].sections[Section].push(Topic);
         });
 
@@ -375,7 +358,6 @@ export default function Dashboard() {
     loadSyllabus();
   }, []);
 
-  // --- PEER-TO-PEER SYNC ACTIONS ---
   const getSyncPayload = () => {
     const dataToExport = {
       theme: state.theme, syllabusType: state.syllabusType,
@@ -432,14 +414,8 @@ export default function Dashboard() {
     executeSync(base64Payload);
   };
 
-  const handleConfirmUrlSync = () => {
-    if (incomingPayload) executeSync(incomingPayload);
-  };
-
-  const handleCancelUrlSync = () => {
-    setIncomingPayload(null);
-    window.history.replaceState({}, document.title, window.location.pathname);
-  };
+  const handleConfirmUrlSync = () => { if (incomingPayload) executeSync(incomingPayload); };
+  const handleCancelUrlSync = () => { setIncomingPayload(null); window.history.replaceState({}, document.title, window.location.pathname); };
 
   const handleHardReset = () => {
     const confirm1 = window.confirm("🚨 WARNING 🚨\n\nAre you absolutely sure you want to completely erase ALL your progress, history, and active plans? This action CANNOT be undone!");
@@ -471,7 +447,6 @@ export default function Dashboard() {
   const toggleTopicSection = (section: string) => { setExpandedTopicSections(prev => ({ ...prev, [section]: !prev[section] })); };
   const togglePlanSubject = (subject: string) => { setExpandedPlanSubjects(prev => ({ ...prev, [subject]: !prev[subject] })); };
 
-  // --- STATS CALCULATIONS ---
   const activeCompletedTopics = Object.keys(completedTopics).filter(topic => getSubjectForTopic(topic, currentSyllabus) !== 'Unknown');
   const totalCompleted = activeCompletedTopics.length;
   const completionPct = Math.round((totalCompleted / getTotalTopicsCount(currentSyllabus)) * 100) || 0;
@@ -488,23 +463,18 @@ export default function Dashboard() {
   const generateHeatmapGrid = () => {
     const today = new Date();
     today.setHours(0,0,0,0);
-    
-    // Grid perfectly anchors to the first day of the CURRENT month
     let startGridDate = new Date(today.getFullYear(), today.getMonth(), 1);
     const dayOfWeek = startGridDate.getDay();
     const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
     startGridDate.setDate(startGridDate.getDate() - daysToMonday);
-    
     const cols = [];
     let currentDate = new Date(startGridDate);
-    
     for (let w = 0; w < 52; w++) { 
       const colDays = [];
       for (let d = 0; d < 7; d++) {
         const isFuture = currentDate > today;
         const dateStr = getLocalYMD(currentDate);
         const count = dailyCompletions[dateStr] || 0;
-        
         let colorClass = "bg-gray-200 border-gray-300"; 
         if (!isFuture) {
           if (count > 0) {
@@ -514,7 +484,6 @@ export default function Dashboard() {
             else colorClass = "bg-green-800 border-green-900";
           }
         }
-
         colDays.push({ date: new Date(currentDate), dateStr, colorClass, count, isFuture });
         currentDate.setDate(currentDate.getDate() + 1);
       }
@@ -543,38 +512,26 @@ export default function Dashboard() {
     const upcoming = [];
     const today = new Date();
     today.setHours(0,0,0,0);
-
     for (let i = 1; i <= 6; i++) {
       const targetDate = new Date(today);
       targetDate.setDate(targetDate.getDate() + i);
       const targetDateStr = getLocalYMD(targetDate);
-      
-      const d4 = [];
-      const d7 = [];
-      
+      const d4 = []; const d7 = [];
       for (const topic of activeCompletedTopics) {
         const diffDays = getDaysDiff(targetDateStr, completedTopics[topic]);
         const st = reviewStates[topic] || { day4: false, day7: false };
         if (diffDays === 3 && !st.day4) d4.push(topic);
         if (diffDays === 6 && !st.day7) d7.push(topic);
       }
-      
       upcoming.push({ date: targetDate, dateStr: targetDateStr, day4: d4, day7: d7 });
     }
     return upcoming;
   };
   const upcomingReviews = getUpcomingReviews();
 
-  const handleSyllabusToggle = (type: 'official' | 'parth') => {
-    if (state.syllabusType === type) return;
-    const confirmed = window.confirm("Switching curriculums will start a new consistency grid and clear your active plan (your previous data is saved securely in the background). Continue?");
-    if (confirmed) state.setSyllabusType(type);
-  };
-
   const getPlanDetails = () => {
     if (!state.planDeadline) return null;
     const todayStr = getTodayStr();
-    
     const planTopicsActive = state.planTopics.filter(t => {
       if (!completedTopics[t]) return true; 
       if (completedTopics[t] === todayStr) return true; 
@@ -585,7 +542,6 @@ export default function Dashboard() {
     if (daysLeft < 1) daysLeft = 1; 
 
     const topicsPerDay = Math.ceil(planTopicsActive.length / daysLeft);
-
     const forecast = [];
     for(let i=0; i<4; i++) {
       const targetDate = new Date();
@@ -595,7 +551,6 @@ export default function Dashboard() {
     }
 
     const strictTopicsLeft = state.planTopics.filter(t => !completedTopics[t]).length;
-
     return { daysLeft, topicsLeft: strictTopicsLeft, topicsPerDay, forecast };
   };
 
@@ -705,10 +660,13 @@ export default function Dashboard() {
         .hide-scrollbar::-webkit-scrollbar { display: none; }
         .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
-        /* PRINT STYLES */
+        /* DYNAMIC PRINT STYLES - SWAPS ORIENTATION BASED ON TAB */
         @media print {
           body, html { background-color: white !important; margin: 0; padding: 0; }
-          @page { size: A4 portrait; margin: 15mm; }
+          @page { 
+            size: A4 ${activeTab === 'plan' ? 'landscape' : 'portrait'}; 
+            margin: ${activeTab === 'plan' ? '10mm 15mm' : '15mm'}; 
+          }
           * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
           .page-break-inside-avoid { break-inside: avoid; }
         }
@@ -1034,6 +992,11 @@ export default function Dashboard() {
                   <h1 className="text-lg font-bold uppercase tracking-tight mb-1">Dynamic_Planner</h1>
                   <p className="text-gray-500 text-xs">Auto-schedules specific modules based on your deadline.</p>
                 </div>
+                {state.planDeadline && (
+                  <button onClick={() => window.print()} className="bg-black text-white px-4 py-2 text-xs font-bold uppercase tracking-tight hover:bg-gray-800 transition-colors flex items-center gap-2 shadow-[2px_2px_0px_0px_rgba(0,0,0,0.5)]">
+                    <Printer size={16} /> Print_A4_Landscape
+                  </button>
+                )}
               </div>
 
               {!state.planDeadline ? (
@@ -1139,6 +1102,7 @@ export default function Dashboard() {
                 </div>
               ) : (
                 <div className="space-y-6">
+                  {/* On-Screen Dashboard View */}
                   <div className="bg-black text-white border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,0.3)] p-4 sm:p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
                     <div>
                       <span className="text-gray-400 text-[10px] sm:text-xs font-bold uppercase block mb-1">Target_Deadline</span>
@@ -1445,90 +1409,172 @@ export default function Dashboard() {
       </div>
 
       {/* --- PRINT ONLY VIEW (HIDDEN ON SCREEN, VISIBLE ON PAPER) --- */}
-      <div className="hidden print:block print:bg-white print:text-black w-full min-h-screen font-mono">
-        <div className="border-b-4 border-black pb-4 mb-6 flex justify-between items-end">
-          <h1 className="text-2xl font-bold uppercase tracking-tighter flex items-center gap-2">
-            <CalendarDays size={28} /> CFA REVISION WEEKLY SCHEDULE
-          </h1>
-          <span className="text-sm font-bold text-gray-500 uppercase">
-            Date From: {upcomingReviews[0].date.getDate()} {upcomingReviews[0].date.toLocaleDateString('en-US', { month: 'long' })} To: {upcomingReviews[5].date.getDate()} {upcomingReviews[5].date.toLocaleDateString('en-US', { month: 'long' })}
-          </span>
-        </div>
+      <div className="hidden print:block print:bg-white print:text-black w-full min-h-screen font-sans">
         
-        <div className="grid grid-cols-2 gap-x-4 gap-y-4">
-          {upcomingReviews.map((day, i) => {
-            const isEmpty = day.day4.length === 0 && day.day7.length === 0;
-            return (
-              <div key={i} className="border-2 border-black p-3 flex flex-col min-h-[100px] page-break-inside-avoid">
-                <div className="font-bold text-sm uppercase border-b-2 border-black pb-2 mb-3 flex justify-between items-end">
-                  <span className="!text-[#ea580c]">{i === 0 ? "TOMORROW" : day.date.toLocaleDateString('en-US', { weekday: 'short' })}</span>
-                  <span className="text-xs text-gray-500 font-bold">{day.date.getDate()} {day.date.toLocaleDateString('en-US', { month: 'short' })}</span>
-                </div>
-                
-                {isEmpty ? (
-                  <div className="text-xs text-gray-400 uppercase tracking-widest text-center flex-1 flex items-center justify-center">[ CLEAR ]</div>
-                ) : (
-                  <div className="space-y-4 flex-1">
-                    {day.day4.length > 0 && (
-                      <div>
-                        <span className="text-[10px] font-bold !text-[#854d0e] !bg-[#fefce8] px-1 border !border-[#854d0e] uppercase inline-block mb-1">Day 4</span>
-                        <div className="text-xs space-y-1.5 text-black">
-                          {day.day4.map(t => {
-                            const [name, rawDur] = t.includes(' | ') ? t.split(' | ') : [t, null];
-                            const duration = formatDuration(rawDur);
-                            return (
-                              <div key={t} className="leading-snug border-b border-gray-100 pb-1.5 mb-1.5 last:border-0 last:pb-0 last:mb-0">
-                                • {name} {duration && <span className="!text-[#ea580c] font-bold">[{duration}]</span>}
-                              </div>
-                            )
-                          })}
-                        </div>
-                      </div>
-                    )}
-                    {day.day7.length > 0 && (
-                      <div>
-                        <span className="text-[10px] font-bold !text-[#166534] !bg-[#f0fdf4] px-1 border !border-[#166534] uppercase inline-block mb-1">Day 7</span>
-                        <div className="text-xs space-y-1.5 text-black">
-                          {day.day7.map(t => {
-                            const [name, rawDur] = t.includes(' | ') ? t.split(' | ') : [t, null];
-                            const duration = formatDuration(rawDur);
-                            return (
-                              <div key={t} className="leading-snug border-b border-gray-100 pb-1.5 mb-1.5 last:border-0 last:pb-0 last:mb-0">
-                                • {name} {duration && <span className="!text-[#ea580c] font-bold">[{duration}]</span>}
-                              </div>
-                            )
-                          })}
-                        </div>
+        {/* 1. TRACKER PRINT LAYOUT (PORTRAIT) */}
+        {activeTab === 'tracker' && (
+          <div>
+            <div className="border-b-4 border-black pb-4 mb-6 flex justify-between items-end">
+              <h1 className="text-2xl font-bold uppercase tracking-tighter flex items-center gap-2">
+                <CalendarDays size={28} /> CFA REVISION WEEKLY SCHEDULE
+              </h1>
+              <span className="text-sm font-bold text-gray-500 uppercase">
+                Date From: {upcomingReviews[0].date.getDate()} {upcomingReviews[0].date.toLocaleDateString('en-US', { month: 'long' })} To: {upcomingReviews[5].date.getDate()} {upcomingReviews[5].date.toLocaleDateString('en-US', { month: 'long' })}
+              </span>
+            </div>
+            
+            <div className="grid grid-cols-2 gap-x-4 gap-y-4">
+              {upcomingReviews.map((day, i) => {
+                const isEmpty = day.day4.length === 0 && day.day7.length === 0;
+                return (
+                  <div key={i} className="border-2 border-black p-3 flex flex-col min-h-[100px] page-break-inside-avoid">
+                    <div className="font-bold text-sm uppercase border-b-2 border-black pb-2 mb-3 flex justify-between items-end">
+                      <span className="!text-[#ea580c]">{i === 0 ? "TOMORROW" : day.date.toLocaleDateString('en-US', { weekday: 'short' })}</span>
+                      <span className="text-xs text-gray-500 font-bold">{day.date.getDate()} {day.date.toLocaleDateString('en-US', { month: 'short' })}</span>
+                    </div>
+                    
+                    {isEmpty ? (
+                      <div className="text-xs text-gray-400 uppercase tracking-widest text-center flex-1 flex items-center justify-center">[ CLEAR ]</div>
+                    ) : (
+                      <div className="space-y-4 flex-1">
+                        {day.day4.length > 0 && (
+                          <div>
+                            <span className="text-[10px] font-bold !text-[#854d0e] !bg-[#fefce8] px-1 border !border-[#854d0e] uppercase inline-block mb-1">Day 4</span>
+                            <div className="text-xs space-y-1.5 text-black">
+                              {day.day4.map(t => {
+                                const [name, rawDur] = t.includes(' | ') ? t.split(' | ') : [t, null];
+                                const duration = formatDuration(rawDur);
+                                return (
+                                  <div key={t} className="leading-snug border-b border-gray-100 pb-1.5 mb-1.5 last:border-0 last:pb-0 last:mb-0">
+                                    • {name} {duration && <span className="!text-[#ea580c] font-bold">[{duration}]</span>}
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          </div>
+                        )}
+                        {day.day7.length > 0 && (
+                          <div>
+                            <span className="text-[10px] font-bold !text-[#166534] !bg-[#f0fdf4] px-1 border !border-[#166534] uppercase inline-block mb-1">Day 7</span>
+                            <div className="text-xs space-y-1.5 text-black">
+                              {day.day7.map(t => {
+                                const [name, rawDur] = t.includes(' | ') ? t.split(' | ') : [t, null];
+                                const duration = formatDuration(rawDur);
+                                return (
+                                  <div key={t} className="leading-snug border-b border-gray-100 pb-1.5 mb-1.5 last:border-0 last:pb-0 last:mb-0">
+                                    • {name} {duration && <span className="!text-[#ea580c] font-bold">[{duration}]</span>}
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
-                )}
+                )
+              })}
+            </div>
+
+            <div className="mt-8 pt-6 border-t-4 border-black page-break-inside-avoid">
+              <h2 className="text-lg font-bold uppercase mb-4 tracking-tighter">Timeline Overview</h2>
+              <div className="grid grid-cols-6 gap-2">
+                {upcomingReviews.map((day, idx) => {
+                  let blockClass = "bg-white text-black border-2 border-black";
+                  if (idx === 0) blockClass = "bg-blue-600 !text-white border-2 border-blue-800";
+                  else if (idx === 3 || idx === 4) blockClass = "bg-[#32cd32] !text-white border-2 border-[#166534]";
+                  else if (idx === 5) blockClass = "bg-[#dc2626] !text-white border-2 border-[#991b1b]";
+                  return (
+                    <div key={idx} className={`flex flex-col items-center justify-center p-2 ${blockClass}`}>
+                      <span className="text-[10px] font-bold uppercase mb-0.5">{day.date.toLocaleDateString('en-US', { month: 'short' })}</span>
+                      <span className="text-2xl font-black leading-none my-0.5">{day.date.getDate()}</span>
+                      <span className="text-[10px] font-bold uppercase mt-0.5">{day.date.toLocaleDateString('en-US', { weekday: 'short' })}</span>
+                    </div>
+                  )
+                })}
               </div>
-            )
-          })}
-        </div>
-
-        {/* 6-DAY CHUNKY CALENDAR BLOCK (PRINT ONLY) */}
-        <div className="mt-8 pt-6 border-t-4 border-black page-break-inside-avoid">
-          <h2 className="text-lg font-bold uppercase mb-4 tracking-tighter">Timeline Overview</h2>
-          <div className="grid grid-cols-6 gap-2">
-            {upcomingReviews.map((day, idx) => {
-              let blockClass = "bg-white text-black border-2 border-black";
-              
-              if (idx === 0) blockClass = "bg-blue-600 !text-white border-2 border-blue-800";
-              else if (idx === 3 || idx === 4) blockClass = "bg-[#32cd32] !text-white border-2 border-[#166534]";
-              else if (idx === 5) blockClass = "bg-[#dc2626] !text-white border-2 border-[#991b1b]";
-
-              return (
-                <div key={idx} className={`flex flex-col items-center justify-center p-2 ${blockClass}`}>
-                  <span className="text-[10px] font-bold uppercase mb-0.5">{day.date.toLocaleDateString('en-US', { month: 'short' })}</span>
-                  <span className="text-2xl font-black leading-none my-0.5">{day.date.getDate()}</span>
-                  <span className="text-[10px] font-bold uppercase mt-0.5">{day.date.toLocaleDateString('en-US', { weekday: 'short' })}</span>
-                </div>
-              )
-            })}
+            </div>
           </div>
-        </div>
+        )}
+
+        {/* 2. PLANNER PRINT LAYOUT (LANDSCAPE) */}
+        {activeTab === 'plan' && planDetails && (
+          <div className="font-sans">
+            {/* The Top Black Dashboard Block */}
+            <div className="!bg-black !text-white border-[3px] !border-black p-5 flex justify-between items-center mb-6 shadow-[6px_6px_0px_0px_rgba(0,0,0,0.1)]">
+              <div>
+                <span className="!text-gray-400 text-[10px] font-bold uppercase block mb-1">Target_Deadline</span>
+                <span className="text-2xl font-bold !text-[#34d399]">{state.planDeadline}</span>
+              </div>
+              <div className="flex gap-12 mr-8">
+                <div>
+                  <span className="!text-gray-400 text-[10px] font-bold uppercase block mb-1">Days_Left</span>
+                  <span className="text-2xl font-bold !text-white">{planDetails.daysLeft}</span>
+                </div>
+                <div>
+                  <span className="!text-gray-400 text-[10px] font-bold uppercase block mb-1">Items_Left</span>
+                  <span className="text-2xl font-bold !text-white">{planDetails.topicsLeft}</span>
+                </div>
+                <div>
+                  <span className="!text-gray-400 text-[10px] font-bold uppercase block mb-1">Required_Pace</span>
+                  <span className="text-2xl font-bold !text-[#60a5fa]">{planDetails.topicsPerDay}/DAY</span>
+                </div>
+              </div>
+            </div>
+
+            {/* The 4-Column Grid */}
+            <div className="grid grid-cols-4 gap-5 items-start">
+              {planDetails.forecast.map((dayPlan, idx) => (
+                <div key={idx} className={`${dayPlan.isToday ? 'bg-white border-[3px] !border-black shadow-[6px_6px_0px_0px_rgba(0,0,0,1)]' : 'bg-transparent border-gray-300 border-[2px] border-dashed'} p-4 page-break-inside-avoid min-h-[300px]`}>
+                  
+                  <div className={`flex justify-between items-center pb-3 mb-4 ${dayPlan.isToday ? 'border-b-[3px] border-black' : 'border-b-2 border-gray-300'}`}>
+                    <span className={`font-bold text-sm uppercase tracking-tight flex items-center gap-2 ${dayPlan.isToday ? 'text-black' : 'text-gray-500'}`}>
+                      {dayPlan.isToday ? <ListTodo size={16}/> : null} 
+                      {dayPlan.isToday ? "TODAY" : dayPlan.isTomorrow ? "TOMORROW" : dayPlan.date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                    </span>
+                  </div>
+                  
+                  {dayPlan.topics.length === 0 ? (
+                    <div className="text-center text-gray-400 py-6 text-xs uppercase tracking-widest">[ Empty ]</div>
+                  ) : (
+                    <div className="flex flex-col gap-3">
+                      {dayPlan.topics.map((t, tIdx) => {
+                        const subject = getSubjectForTopic(t, currentSyllabus);
+                        const [topicName, rawDur] = t.includes(' | ') ? t.split(' | ') : [t, null];
+                        const duration = formatDuration(rawDur);
+                        const isDone = !!completedTopics[t];
+                        
+                        if (dayPlan.isToday) {
+                          return (
+                            <div key={tIdx} className={`flex items-start gap-3 p-3 border-[2px] ${isDone ? 'bg-gray-100 border-gray-200' : 'bg-white border-gray-200 border-l-[6px] border-l-black'}`}>
+                              <div className="pt-[1px]">
+                                {isDone ? <CheckCircle2 size={16} className="text-gray-400"/> : <Square size={16} className="text-black"/>}
+                              </div>
+                              <div className={`flex flex-col flex-1 leading-tight font-bold ${isDone ? 'opacity-40 line-through' : 'text-black'}`}>
+                                <span className="uppercase text-[11px] !text-[#ea580c] tracking-tight">[{subject}]</span>
+                                <span className="mt-1.5 text-xs">{topicName}</span>
+                                {duration && <span className="font-bold mt-1 text-[11px] !text-[#ea580c]">[{duration}]</span>}
+                              </div>
+                            </div>
+                          );
+                        }
+
+                        return (
+                          <div key={tIdx} className="p-1 leading-tight font-bold flex flex-col border-l-2 border-gray-300 pl-3">
+                            <span className="uppercase text-[11px] !text-[#ea580c] tracking-tight">[{subject}]</span>
+                            <span className="block mt-1.5 text-xs text-gray-700">{topicName}</span>
+                            {duration && <span className="font-bold block mt-1 text-[11px] !text-[#ea580c]">[{duration}]</span>}
+                          </div>
+                        );
+                      })}
+                      {dayPlan.isToday && <div className="text-[10px] text-gray-400 mt-2 italic font-medium">*Completed items will be removed at midnight.</div>}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
       </div>
     </div>
