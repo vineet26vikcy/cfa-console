@@ -40,7 +40,7 @@ interface TrackerState {
   importData: (data: any) => void;
   setPlan: (topics: string[], deadline: string) => void;
   clearPlan: () => void;
-  hardReset: () => void; // <--- NEW HARD RESET FUNCTION
+  hardReset: () => void;
 }
 
 const useStore = create<TrackerState>()(
@@ -109,10 +109,52 @@ const useStore = create<TrackerState>()(
 
 // --- 3. CUSTOM UI COMPONENTS ---
 const RadarChart = ({ data }: { data: { subject: string, pct: number }[] }) => {
-  const size = 400;
+  const size = 550; // Increased size to fit everything beautifully
   const center = size / 2;
-  const radius = 120;
-  const angleStep = (Math.PI * 2) / data.length;
+  const radius = 170; 
+
+  // Strict ordering and color mapping to replicate the target image perfectly
+  const orderedSubjects = [
+    "Ethics", "FSA", "Equity Investments", "Fixed Income", "Portfolio Management",
+    "Alternative Investments", "Quants", "Economics", "Corporate Issuers", "Derivatives"
+  ];
+
+  const colorMap: Record<string, string> = {
+    "Ethics": "#ef4444",                  // Red
+    "FSA": "#f97316",                     // Orange
+    "Equity Investments": "#eab308",      // Yellow
+    "Fixed Income": "#84cc16",            // Lime Green
+    "Portfolio Management": "#22c55e",    // Green
+    "Alternative Investments": "#14b8a6", // Teal
+    "Quants": "#3b82f6",                  // Blue
+    "Economics": "#6366f1",               // Indigo
+    "Corporate Issuers": "#a855f7",       // Purple
+    "Derivatives": "#ec4899"              // Pink
+  };
+
+  const getShortName = (name: string) => {
+    const map: Record<string, string> = {
+      "Alternative Investments": "Alternative Investments", 
+      "Portfolio Management": "Portfolio Management",
+      "Corporate Issuers": "Corporate Issuers", 
+      "Equity Investments": "Equity Investments",
+      "Quantitative Methods": "Quantitative Methods", 
+      "Fixed Income": "Fixed Income",
+      "Economics": "Economics", 
+      "Derivatives": "Derivatives", 
+      "Ethics": "Ethics", 
+      "FSA": "FSA"
+    };
+    return map[name] || name;
+  };
+
+  // Map the raw data into our strictly ordered array
+  const orderedData = orderedSubjects.map(sub => {
+    const match = data.find(d => d.subject === sub);
+    return match || { subject: sub, pct: 0 };
+  });
+
+  const angleStep = (Math.PI * 2) / orderedData.length;
 
   const getPoint = (val: number, index: number) => {
     const angle = index * angleStep - Math.PI / 2;
@@ -120,52 +162,72 @@ const RadarChart = ({ data }: { data: { subject: string, pct: number }[] }) => {
     return { x: center + r * Math.cos(angle), y: center + r * Math.sin(angle) };
   };
 
-  const dataPoints = data.map((d, i) => getPoint(d.pct, i));
-  const dataPath = dataPoints.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ') + ' Z';
-
-  const getShortName = (name: string) => {
-    const map: Record<string, string> = {
-      "Alternative Investments": "Alt Invts", "Portfolio Management": "Port Mgmt",
-      "Corporate Issuers": "Corp Issuers", "Equity Investments": "Equities",
-      "Quantitative Methods": "Quants", "Fixed Income": "Fixed Inc",
-      "Economics": "Economics", "Derivatives": "Derivs", "Ethics": "Ethics", "FSA": "FSA"
-    };
-    return map[name] || name;
-  };
+  const dataPoints = orderedData.map((d, i) => getPoint(d.pct, i));
 
   return (
-    <svg viewBox={`0 0 ${size} ${size}`} className="w-full max-w-lg mx-auto overflow-visible font-mono mt-4">
+    <svg viewBox={`0 0 ${size} ${size}`} className="w-full h-auto max-w-[500px] mx-auto overflow-visible font-sans drop-shadow-sm">
+      
+      {/* Background Webs (Octagons) */}
       {[20, 40, 60, 80, 100].map((level) => {
-        const levelPoints = data.map((_, i) => getPoint(level, i));
+        const levelPoints = orderedData.map((_, i) => getPoint(level, i));
         const levelPath = levelPoints.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ') + ' Z';
-        return <path key={level} d={levelPath} fill="none" className="stroke-current text-gray-300" strokeWidth="1" />;
+        return <path key={level} d={levelPath} fill="none" className="stroke-gray-300" strokeWidth="1" />;
       })}
 
-      {data.map((_, i) => {
+      {/* Axis Lines radiating from center */}
+      {orderedData.map((_, i) => {
         const p = getPoint(100, i);
-        return <line key={i} x1={center} y1={center} x2={p.x} y2={p.y} className="stroke-current text-gray-300" strokeWidth="1" />
+        return <line key={`axis-${i}`} x1={center} y1={center} x2={p.x} y2={p.y} className="stroke-gray-300" strokeWidth="1" />
       })}
 
-      <path d={dataPath} className="fill-[#ea580c] stroke-[#ea580c] fill-opacity-20" strokeWidth="2" />
-      {dataPoints.map((p, i) => <circle key={i} cx={p.x} cy={p.y} r="4" className="fill-[#ea580c]" />)}
+      {/* The Colorful Data Polygon Slices (translucent fill) */}
+      {dataPoints.map((p, i) => {
+        const nextI = (i + 1) % dataPoints.length;
+        const pNext = dataPoints[nextI];
+        const subjectColor = colorMap[orderedData[i].subject] || "#9ca3af";
+        const pathData = `M ${center} ${center} L ${p.x} ${p.y} L ${pNext.x} ${pNext.y} Z`;
+        return <path key={`slice-${i}`} d={pathData} fill={subjectColor} fillOpacity="0.25" />;
+      })}
 
-      {data.map((d, i) => {
-        const labelP = getPoint(145, i); 
+      {/* The Colored Outer Border segments */}
+      {dataPoints.map((p, i) => {
+        const nextI = (i + 1) % dataPoints.length;
+        const pNext = dataPoints[nextI];
+        const subjectColor = colorMap[orderedData[i].subject] || "#9ca3af";
+        return <line key={`border-${i}`} x1={p.x} y1={p.y} x2={pNext.x} y2={pNext.y} stroke={subjectColor} strokeWidth="2.5" />;
+      })}
+
+      {/* Data Points (Dots on vertices) */}
+      {dataPoints.map((p, i) => {
+        const subjectColor = colorMap[orderedData[i].subject] || "#9ca3af";
+        return <circle key={`dot-${i}`} cx={p.x} cy={p.y} r="5" fill={subjectColor} />;
+      })}
+
+      {/* Labels */}
+      {orderedData.map((d, i) => {
+        const labelP = getPoint(135, i); 
         let textAnchor: "middle" | "start" | "end" = "middle";
         const cosVal = Math.cos(i * angleStep - Math.PI / 2);
+        
+        // Strict text anchoring so text pushes away from the shape
         if (Math.abs(cosVal) < 0.1) textAnchor = "middle";
         else if (cosVal > 0) textAnchor = "start";
         else textAnchor = "end";
 
+        // Vertical bumping to prevent label collisions
         const sinVal = Math.sin(i * angleStep - Math.PI / 2);
         let yOffset = 0;
         if (sinVal < -0.8) yOffset = -5;
-        if (sinVal > 0.8) yOffset = 5;
+        if (sinVal > 0.8) yOffset = 15;
 
         return (
-          <g key={i} transform={`translate(${labelP.x}, ${labelP.y + yOffset})`}>
-            <text textAnchor={textAnchor} className="text-[10px] fill-current text-gray-500 font-bold uppercase tracking-tighter">{getShortName(d.subject)}</text>
-            <text y="14" textAnchor={textAnchor} className="text-sm fill-current text-black font-bold">{d.pct}%</text>
+          <g key={`label-${i}`} transform={`translate(${labelP.x}, ${labelP.y + yOffset})`}>
+            <text textAnchor={textAnchor} className="text-[12px] fill-gray-800 font-medium tracking-tight">
+              {getShortName(d.subject)}
+            </text>
+            <text y="18" textAnchor={textAnchor} className="text-[16px] fill-black font-black">
+              {d.pct}%
+            </text>
           </g>
         )
       })}
@@ -223,7 +285,6 @@ const TopicLabel = ({ topic, isChecked, state, onToggle }: { topic: string, isCh
   );
 };
 
-// Utilities
 const getSubjectForTopic = (topicName: string, syllabusObj: any) => {
   for (const [subject, data] of Object.entries(syllabusObj)) {
     const sections = (data as any).sections;
@@ -387,7 +448,7 @@ export default function Dashboard() {
       if (confirm2) {
         state.hardReset();
         alert("All data has been wiped. Good luck on your fresh start!");
-        window.location.replace('/'); // Hard reload to guarantee clean UI
+        window.location.replace('/');
       }
     }
   };
@@ -424,12 +485,11 @@ export default function Dashboard() {
     return { subject, pct: subPct };
   });
 
-  // --- HEATMAP: ANCHORED TO CURRENT MONTH ---
   const generateHeatmapGrid = () => {
     const today = new Date();
     today.setHours(0,0,0,0);
     
-    // Start grid at the beginning of the CURRENT month, aligned to Monday
+    // Grid perfectly anchors to the first day of the CURRENT month
     let startGridDate = new Date(today.getFullYear(), today.getMonth(), 1);
     const dayOfWeek = startGridDate.getDay();
     const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
@@ -504,6 +564,12 @@ export default function Dashboard() {
     return upcoming;
   };
   const upcomingReviews = getUpcomingReviews();
+
+  const handleSyllabusToggle = (type: 'official' | 'parth') => {
+    if (state.syllabusType === type) return;
+    const confirmed = window.confirm("Switching curriculums will start a new consistency grid and clear your active plan (your previous data is saved securely in the background). Continue?");
+    if (confirmed) state.setSyllabusType(type);
+  };
 
   const getPlanDetails = () => {
     if (!state.planDeadline) return null;
@@ -1155,50 +1221,117 @@ export default function Dashboard() {
           {activeTab === 'data' && (
             <div className="space-y-6 animate-in fade-in duration-300">
               
-              {/* RADAR CHART BLOCK */}
-              <div className="relative bg-white border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] p-4 sm:p-5">
-                <div className="flex items-center gap-2 mb-4 border-b-2 border-black pb-2">
-                  <Target size={18} />
-                  <h2 className="text-sm font-bold uppercase tracking-tight">Subject_Mastery_Radar</h2>
-                </div>
+              {/* TOP ROW: Split screen layout for Desktop */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
                 
-                <div className="absolute top-4 right-4 text-right hidden sm:block">
-                   <div className="text-[10px] font-bold text-gray-500 uppercase tracking-tighter">Avg_Completion</div>
-                   <div className="text-2xl font-black leading-none mt-1">{completionPct}%</div>
+                {/* LEFT HALF: The Vibrant Radar Chart */}
+                <div className="bg-white border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] p-4 sm:p-6 flex flex-col h-full">
+                  <div className="flex justify-between items-start mb-6">
+                    <div>
+                      <h2 className="text-2xl sm:text-3xl font-black uppercase tracking-tighter leading-none">CFA Level I</h2>
+                      <p className="text-[10px] sm:text-xs text-gray-500 font-bold tracking-widest uppercase mt-1">Study Progress</p>
+                    </div>
+                    <div className="border border-gray-200 bg-gray-50 px-4 py-2 text-right rounded-lg shadow-sm">
+                      <div className="text-[8px] font-bold text-gray-400 uppercase tracking-widest">Average Completion</div>
+                      <div className="text-2xl sm:text-3xl font-black leading-none mt-1">{completionPct}%</div>
+                    </div>
+                  </div>
+                  <div className="flex-1 flex items-center justify-center -mt-4">
+                    <RadarChart data={radarData} />
+                  </div>
                 </div>
 
-                <RadarChart data={radarData} />
+                {/* RIGHT HALF: Exam Weightage & Danger Zone */}
+                <div className="flex flex-col gap-6">
+                  {/* Exam Weightage */}
+                  <div className="bg-white border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] p-4 sm:p-5 flex-1">
+                    <div className="flex items-center gap-2 mb-4 border-b-2 border-black pb-2">
+                      <PieChart size={18} />
+                      <h2 className="text-sm font-bold uppercase tracking-tight">Exam_Weightage</h2>
+                    </div>
+                    <div className="flex flex-col border border-black">
+                      {Object.entries(currentSyllabus).sort((a: any,b: any) => parseInt(b[1].weight) - parseInt(a[1].weight)).map(([sub, data]: any, idx, arr) => (
+                        <div key={sub} className={`flex justify-between p-3 sm:p-2 text-xs ${idx !== arr.length - 1 ? 'border-b border-gray-200' : ''}`}>
+                          <span className="font-bold">{sub}</span>
+                          <span className="bg-gray-100 px-1 border border-gray-300">{data.weight}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Danger Zone (Hard Reset) */}
+                  <div className="bg-red-50 border-2 border-red-600 shadow-[4px_4px_0px_0px_rgba(220,38,38,1)] p-4 sm:p-5">
+                    <div className="flex items-center gap-2 mb-2 border-b-2 border-red-600 pb-2">
+                      <AlertTriangle size={18} className="text-red-600" />
+                      <h2 className="text-sm font-bold uppercase tracking-tight text-red-600">Danger_Zone</h2>
+                    </div>
+                    <p className="text-[10px] sm:text-xs text-red-800 font-bold mb-4 mt-2">
+                      Clicking this will permanently erase all completed topics, review schedules, and active plans from this device.
+                    </p>
+                    <button 
+                      onClick={handleHardReset} 
+                      className="w-full bg-red-600 text-white border-2 border-red-800 px-4 py-3 text-xs font-bold uppercase tracking-widest hover:bg-red-700 transition-colors flex items-center justify-center gap-2 shadow-[4px_4px_0px_0px_rgba(153,27,27,1)] hover:translate-y-[2px] hover:translate-x-[2px] hover:shadow-[2px_2px_0px_0px_rgba(153,27,27,1)] active:translate-y-[4px] active:translate-x-[4px] active:shadow-none"
+                    >
+                      <Trash2 size={16} /> Delete Everything
+                    </button>
+                  </div>
+                </div>
+
               </div>
 
-              <div className="bg-white border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] p-4 sm:p-5">
-                <div className="flex items-center gap-2 mb-4 border-b-2 border-black pb-2">
-                  <Settings size={18} />
-                  <h2 className="text-sm font-bold uppercase tracking-tight">Curriculum_Mode</h2>
+              {/* SECOND ROW: Curriculum Mode & Legacy Backup */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+                {/* Curriculum Mode */}
+                <div className="bg-white border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] p-4 sm:p-5 h-full">
+                  <div className="flex items-center gap-2 mb-4 border-b-2 border-black pb-2">
+                    <Settings size={18} />
+                    <h2 className="text-sm font-bold uppercase tracking-tight">Curriculum_Mode</h2>
+                  </div>
+                  <div className="flex items-start gap-3 mb-4 p-3 bg-amber-50 border border-amber-200">
+                    <AlertTriangle size={18} className="text-amber-600 flex-shrink-0 mt-0.5" />
+                    <p className="text-[10px] sm:text-xs text-amber-800 font-bold leading-snug">
+                      Warning: Switching modes will reset the consistency grid to match the selected syllabus and clear your active planner schedule. Your previous data is securely saved in the background.
+                    </p>
+                  </div>
+                  <div className="flex flex-col sm:flex-row bg-gray-100 p-1 border-2 border-black gap-1 sm:gap-0 mt-auto">
+                    <button onClick={() => handleSyllabusToggle('official')} className={`flex-1 py-3 sm:py-2 text-xs font-bold uppercase tracking-tight transition-colors ${state.syllabusType === 'official' ? 'bg-black text-white' : 'text-gray-500 hover:text-black hover:bg-gray-200'}`}>
+                      Official Modules
+                    </button>
+                    <button onClick={() => handleSyllabusToggle('parth')} className={`flex-1 py-3 sm:py-2 text-xs font-bold uppercase tracking-tight transition-colors ${state.syllabusType === 'parth' ? 'bg-black text-white' : 'text-gray-500 hover:text-black hover:bg-gray-200'}`}>
+                      Parth Sir Topics
+                    </button>
+                  </div>
                 </div>
-                <div className="flex items-start gap-3 mb-4 p-3 bg-amber-50 border border-amber-200">
-                  <AlertTriangle size={18} className="text-amber-600 flex-shrink-0 mt-0.5" />
-                  <p className="text-xs text-amber-800 font-bold leading-snug">
-                    Warning: Switching modes will clear your active planner schedule. Your previous data is securely saved in the background.
-                  </p>
-                </div>
-                <div className="flex flex-col sm:flex-row bg-gray-100 p-1 border-2 border-black gap-1 sm:gap-0">
-                  <button onClick={() => handleSyllabusToggle('official')} className={`flex-1 py-3 sm:py-2 text-xs font-bold uppercase tracking-tight transition-colors ${state.syllabusType === 'official' ? 'bg-black text-white' : 'text-gray-500 hover:text-black hover:bg-gray-200'}`}>
-                    Official Modules
-                  </button>
-                  <button onClick={() => handleSyllabusToggle('parth')} className={`flex-1 py-3 sm:py-2 text-xs font-bold uppercase tracking-tight transition-colors ${state.syllabusType === 'parth' ? 'bg-black text-white' : 'text-gray-500 hover:text-black hover:bg-gray-200'}`}>
-                    Parth Sir Topics
-                  </button>
+
+                {/* Legacy File Backup */}
+                <div className="bg-white border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] p-4 sm:p-5 h-full">
+                  <div className="flex items-center gap-2 mb-4 border-b-2 border-black pb-2">
+                    <Upload size={18} />
+                    <h2 className="text-sm font-bold uppercase tracking-tight">Legacy_File_Backup</h2>
+                  </div>
+                  <p className="text-[10px] sm:text-xs text-gray-600 mb-6 leading-relaxed">Download a hard copy of your save data as a .json file for permanent safekeeping, or upload an existing save file.</p>
+                  <div className="flex flex-col gap-4 mt-auto">
+                    <button onClick={handleExport} className="w-full bg-white border-2 border-black text-black px-4 py-3 text-xs font-bold uppercase tracking-tight hover:bg-gray-100 transition-colors flex items-center justify-center gap-2 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-y-[1px] hover:translate-x-[1px] hover:shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] active:translate-y-[2px] active:translate-x-[2px] active:shadow-none">
+                      <Download size={16} /> Download_Backup.json
+                    </button>
+                    <div className="relative">
+                      <input type="file" accept=".json" ref={fileInputRef} onChange={handleImport} className="hidden" />
+                      <button onClick={() => fileInputRef.current?.click()} className="w-full bg-gray-50 border border-gray-300 text-gray-600 px-4 py-3 text-[10px] font-bold uppercase tracking-tight hover:bg-gray-100 transition-colors flex items-center justify-center gap-2">
+                        Upload_File_Backup
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
 
-              {/* MAGIC LINK SYNC ENGINE (FALLBACK) */}
+              {/* THIRD ROW: MAGIC LINK SYNC ENGINE */}
               <div className="bg-white border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] p-4 sm:p-5">
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b-2 border-black pb-2 mb-4">
                   <div className="flex items-center gap-2">
                     <LinkIcon size={18} />
                     <h2 className="text-sm font-bold uppercase tracking-tight">Peer-to-Peer Magic Sync</h2>
                   </div>
-                  <span className="bg-gray-200 text-gray-600 px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest">Serverless</span>
+                  <span className="bg-gray-200 text-gray-600 px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest">Serverless Offline Fallback</span>
                 </div>
                 
                 {/* INCOMING URL SYNC POPUP */}
@@ -1227,7 +1360,7 @@ export default function Dashboard() {
                         </div>
                       ) : (
                         <div className="flex flex-col sm:flex-row gap-4">
-                          <button onClick={handleConfirmUrlSync} className="flex-1 bg-black text-white px-4 py-4 sm:py-3 text-xs font-bold uppercase tracking-widest hover:bg-gray-800 transition-colors flex justify-center items-center gap-2">
+                          <button onClick={handleConfirmUrlSync} className="flex-1 bg-black text-white px-4 py-4 sm:py-3 text-xs font-bold uppercase tracking-widest hover:bg-gray-800 transition-colors flex justify-center items-center gap-2 shadow-[2px_2px_0px_0px_rgba(0,0,0,0.3)]">
                             <CheckCircle2 size={16} /> Confirm Sync
                           </button>
                           <button onClick={handleCancelUrlSync} className="flex-1 bg-white text-black border-2 border-black px-4 py-4 sm:py-3 text-xs font-bold uppercase tracking-widest hover:bg-gray-100 transition-colors flex justify-center items-center">
@@ -1303,60 +1436,6 @@ export default function Dashboard() {
                       )}
                    </div>
                 )}
-              </div>
-
-              {/* Legacy File Backup */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
-                <div className="bg-white border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] p-4 sm:p-5">
-                  <div className="flex items-center gap-2 mb-4 border-b-2 border-black pb-2">
-                    <PieChart size={18} />
-                    <h2 className="text-sm font-bold uppercase tracking-tight">Exam_Weightage</h2>
-                  </div>
-                  <div className="flex flex-col border border-black">
-                    {Object.entries(currentSyllabus).sort((a: any,b: any) => parseInt(b[1].weight) - parseInt(a[1].weight)).map(([sub, data]: any, idx, arr) => (
-                      <div key={sub} className={`flex justify-between p-3 sm:p-2 text-xs ${idx !== arr.length - 1 ? 'border-b border-gray-200' : ''}`}>
-                        <span className="font-bold">{sub}</span>
-                        <span className="bg-gray-100 px-1 border border-gray-300">{data.weight}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="bg-white border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] p-4 sm:p-5">
-                  <div className="flex items-center gap-2 mb-4 border-b-2 border-black pb-2">
-                    <Upload size={18} />
-                    <h2 className="text-sm font-bold uppercase tracking-tight">Legacy_File_Backup</h2>
-                  </div>
-                  <p className="text-xs text-gray-600 mb-6">Download a hard copy of your save data as a .json file for permanent safekeeping.</p>
-                  <div className="flex flex-col gap-4">
-                    <button onClick={handleExport} className="w-full bg-white border-2 border-black text-black px-4 py-3 text-xs font-bold uppercase tracking-tight hover:bg-gray-100 transition-colors flex items-center justify-center gap-2">
-                      <Download size={16} /> Download_Backup.json
-                    </button>
-                    <div className="relative">
-                      <input type="file" accept=".json" ref={fileInputRef} onChange={handleImport} className="hidden" />
-                      <button onClick={() => fileInputRef.current?.click()} className="w-full bg-gray-50 border border-gray-300 text-gray-600 px-4 py-2 text-[10px] font-bold uppercase tracking-tight hover:bg-gray-100 transition-colors flex items-center justify-center gap-2">
-                        Upload_File_Backup
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* DANGER ZONE - HARD RESET */}
-              <div className="bg-red-50 border-2 border-red-600 shadow-[4px_4px_0px_0px_rgba(220,38,38,1)] p-4 sm:p-5 mt-8">
-                <div className="flex items-center gap-2 mb-2 border-b-2 border-red-600 pb-2">
-                  <AlertTriangle size={18} className="text-red-600" />
-                  <h2 className="text-sm font-bold uppercase tracking-tight text-red-600">Danger_Zone</h2>
-                </div>
-                <p className="text-xs text-red-800 font-bold mb-4 mt-4">
-                  Clicking this will permanently erase all completed topics, review schedules, and plans from this device.
-                </p>
-                <button 
-                  onClick={handleHardReset} 
-                  className="w-full bg-red-600 text-white border-2 border-red-800 px-4 py-3 text-xs font-bold uppercase tracking-widest hover:bg-red-700 transition-colors flex items-center justify-center gap-2 shadow-[4px_4px_0px_0px_rgba(153,27,27,1)] hover:translate-y-[2px] hover:translate-x-[2px] hover:shadow-[2px_2px_0px_0px_rgba(153,27,27,1)] active:translate-y-[4px] active:translate-x-[4px] active:shadow-none"
-                >
-                  <Trash2 size={16} /> Delete Everything & Start Fresh
-                </button>
               </div>
 
             </div>
