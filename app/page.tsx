@@ -109,9 +109,9 @@ const useStore = create<TrackerState>()(
 
 // --- 3. CUSTOM UI COMPONENTS ---
 const RadarChart = ({ data }: { data: { subject: string, pct: number }[] }) => {
-  const size = 550; 
+  const size = 500; 
   const center = size / 2;
-  const radius = 170; 
+  const radius = 190; // Hugely expanded radius so chart fills up the space
 
   const orderedSubjects = [
     "Ethics", "FSA", "Equity Investments", "Fixed Income", "Portfolio Management",
@@ -163,8 +163,8 @@ const RadarChart = ({ data }: { data: { subject: string, pct: number }[] }) => {
   const dataPoints = orderedData.map((d, i) => getPoint(d.pct, i));
 
   return (
-    // ViewBox is heavily widened (-150 to 850 width) to form a perfect landscape rectangle, preventing vertical blowing up.
-    <svg viewBox="-150 -20 850 590" className="w-full h-full max-h-[350px] lg:max-h-[420px] overflow-visible font-sans drop-shadow-sm">
+    // ViewBox tightened to exact shape boundaries so it naturally stretches out
+    <svg viewBox="-70 -60 640 640" className="w-full h-auto max-w-[650px] mx-auto overflow-visible font-sans drop-shadow-sm mt-4">
       {[20, 40, 60, 80, 100].map((level) => {
         const levelPoints = orderedData.map((_, i) => getPoint(level, i));
         const levelPath = levelPoints.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ') + ' Z';
@@ -188,16 +188,16 @@ const RadarChart = ({ data }: { data: { subject: string, pct: number }[] }) => {
         const nextI = (i + 1) % dataPoints.length;
         const pNext = dataPoints[nextI];
         const subjectColor = colorMap[orderedData[i].subject] || "#9ca3af";
-        return <line key={`border-${i}`} x1={p.x} y1={p.y} x2={pNext.x} y2={pNext.y} stroke={subjectColor} strokeWidth="2.5" />;
+        return <line key={`border-${i}`} x1={p.x} y1={p.y} x2={pNext.x} y2={pNext.y} stroke={subjectColor} strokeWidth="3" />;
       })}
 
       {dataPoints.map((p, i) => {
         const subjectColor = colorMap[orderedData[i].subject] || "#9ca3af";
-        return <circle key={`dot-${i}`} cx={p.x} cy={p.y} r="5" fill={subjectColor} />;
+        return <circle key={`dot-${i}`} cx={p.x} cy={p.y} r="6" fill={subjectColor} />;
       })}
 
       {orderedData.map((d, i) => {
-        const labelP = getPoint(145, i); 
+        const labelP = getPoint(125, i); 
         let textAnchor: "middle" | "start" | "end" = "middle";
         const cosVal = Math.cos(i * angleStep - Math.PI / 2);
         
@@ -212,8 +212,8 @@ const RadarChart = ({ data }: { data: { subject: string, pct: number }[] }) => {
 
         return (
           <g key={`label-${i}`} transform={`translate(${labelP.x}, ${labelP.y + yOffset})`}>
-            <text textAnchor={textAnchor} className="text-[12px] fill-gray-800 font-medium tracking-tight">{getShortName(d.subject)}</text>
-            <text y="18" textAnchor={textAnchor} className="text-[16px] fill-black font-black">{d.pct}%</text>
+            <text textAnchor={textAnchor} className="text-[14px] fill-gray-800 font-bold tracking-tight">{getShortName(d.subject)}</text>
+            <text y="22" textAnchor={textAnchor} className="text-[18px] fill-black font-black">{d.pct}%</text>
           </g>
         )
       })}
@@ -418,7 +418,6 @@ export default function Dashboard() {
   const handleConfirmUrlSync = () => { if (incomingPayload) executeSync(incomingPayload); };
   const handleCancelUrlSync = () => { setIncomingPayload(null); window.history.replaceState({}, document.title, window.location.pathname); };
 
-  // --- MISSING FUNCTION RESTORED ---
   const handleSyllabusToggle = (type: 'official' | 'parth') => {
     if (state.syllabusType === type) return;
     const confirmed = window.confirm("Switching curriculums will reset the consistency grid and clear your active plan (your previous data is saved securely in the background). Continue?");
@@ -1208,7 +1207,7 @@ export default function Dashboard() {
                       <div className="text-2xl sm:text-3xl font-black leading-none mt-1">{completionPct}%</div>
                     </div>
                   </div>
-                  <div className="flex-1 flex items-center justify-center -mt-2 min-h-[300px]">
+                  <div className="flex-1 flex items-center justify-center w-full">
                     <RadarChart data={radarData} />
                   </div>
                 </div>
@@ -1505,47 +1504,48 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* 2. PLANNER PRINT LAYOUT (LANDSCAPE) */}
+        {/* 2. PLANNER PRINT LAYOUT (LANDSCAPE - ULTRA COMPACT TO FIT ONE PAGE) */}
         {activeTab === 'plan' && planDetails && (
-          <div className="font-sans">
+          <div className="font-sans print:text-[10px] print:scale-[0.98] print:origin-top w-full">
+            
             {/* The Top Black Dashboard Block */}
-            <div className="!bg-black !text-white border-[3px] !border-black p-5 flex justify-between items-center mb-6 shadow-[6px_6px_0px_0px_rgba(0,0,0,0.1)]">
+            <div className="!bg-black !text-white border-[3px] !border-black p-3 flex justify-between items-center mb-3">
               <div>
-                <span className="!text-gray-400 text-[10px] font-bold uppercase block mb-1">Target_Deadline</span>
-                <span className="text-2xl font-bold !text-[#34d399]">{state.planDeadline}</span>
+                <span className="!text-gray-400 text-[9px] font-bold uppercase block mb-0.5">Target_Deadline</span>
+                <span className="text-xl font-bold !text-[#34d399]">{state.planDeadline}</span>
               </div>
-              <div className="flex gap-12 mr-8">
+              <div className="flex gap-8 mr-6">
                 <div>
-                  <span className="!text-gray-400 text-[10px] font-bold uppercase block mb-1">Days_Left</span>
-                  <span className="text-2xl font-bold !text-white">{planDetails.daysLeft}</span>
+                  <span className="!text-gray-400 text-[9px] font-bold uppercase block mb-0.5">Days_Left</span>
+                  <span className="text-xl font-bold !text-white">{planDetails.daysLeft}</span>
                 </div>
                 <div>
-                  <span className="!text-gray-400 text-[10px] font-bold uppercase block mb-1">Items_Left</span>
-                  <span className="text-2xl font-bold !text-white">{planDetails.topicsLeft}</span>
+                  <span className="!text-gray-400 text-[9px] font-bold uppercase block mb-0.5">Items_Left</span>
+                  <span className="text-xl font-bold !text-white">{planDetails.topicsLeft}</span>
                 </div>
                 <div>
-                  <span className="!text-gray-400 text-[10px] font-bold uppercase block mb-1">Required_Pace</span>
-                  <span className="text-2xl font-bold !text-[#60a5fa]">{planDetails.topicsPerDay}/DAY</span>
+                  <span className="!text-gray-400 text-[9px] font-bold uppercase block mb-0.5">Required_Pace</span>
+                  <span className="text-xl font-bold !text-[#60a5fa]">{planDetails.topicsPerDay}/DAY</span>
                 </div>
               </div>
             </div>
 
-            {/* The 4-Column Grid */}
-            <div className="grid grid-cols-4 gap-5 items-start">
+            {/* The 4-Column Grid (Aggressively compacted) */}
+            <div className="grid grid-cols-4 gap-2 items-start w-full">
               {planDetails.forecast.map((dayPlan, idx) => (
-                <div key={idx} className={`${dayPlan.isToday ? 'bg-white border-[3px] !border-black shadow-[6px_6px_0px_0px_rgba(0,0,0,1)]' : 'bg-transparent border-gray-300 border-[2px] border-dashed'} p-4 page-break-inside-avoid min-h-[300px]`}>
+                <div key={idx} className={`${dayPlan.isToday ? 'bg-white border-[2px] !border-black' : 'bg-transparent border-gray-300 border-[2px] border-dashed'} p-2 page-break-inside-avoid min-h-[200px]`}>
                   
-                  <div className={`flex justify-between items-center pb-3 mb-4 ${dayPlan.isToday ? 'border-b-[3px] border-black' : 'border-b-2 border-gray-300'}`}>
-                    <span className={`font-bold text-sm uppercase tracking-tight flex items-center gap-2 ${dayPlan.isToday ? 'text-black' : 'text-gray-500'}`}>
-                      {dayPlan.isToday ? <ListTodo size={16}/> : null} 
+                  <div className={`flex justify-between items-center pb-2 mb-2 ${dayPlan.isToday ? 'border-b-[2px] border-black' : 'border-b border-gray-300'}`}>
+                    <span className={`font-bold text-[11px] uppercase tracking-tight flex items-center gap-1.5 ${dayPlan.isToday ? 'text-black' : 'text-gray-600'}`}>
+                      {dayPlan.isToday ? <ListTodo size={12}/> : null} 
                       {dayPlan.isToday ? "TODAY" : dayPlan.isTomorrow ? "TOMORROW" : dayPlan.date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
                     </span>
                   </div>
                   
                   {dayPlan.topics.length === 0 ? (
-                    <div className="text-center text-gray-400 py-6 text-xs uppercase tracking-widest">[ Empty ]</div>
+                    <div className="text-center text-gray-400 py-4 text-[9px] uppercase tracking-widest">[ Empty ]</div>
                   ) : (
-                    <div className="flex flex-col gap-3">
+                    <div className="flex flex-col gap-1.5">
                       {dayPlan.topics.map((t, tIdx) => {
                         const subject = getSubjectForTopic(t, currentSyllabus);
                         const [topicName, rawDur] = t.includes(' | ') ? t.split(' | ') : [t, null];
@@ -1554,28 +1554,27 @@ export default function Dashboard() {
                         
                         if (dayPlan.isToday) {
                           return (
-                            <div key={tIdx} className={`flex items-start gap-3 p-3 border-[2px] ${isDone ? 'bg-gray-100 border-gray-200' : 'bg-white border-gray-200 border-l-[6px] border-l-black'}`}>
+                            <div key={tIdx} className={`flex items-start gap-2 p-1.5 border ${isDone ? 'bg-gray-100 border-gray-200' : 'bg-white border-gray-200 border-l-[4px] border-l-black'}`}>
                               <div className="pt-[1px]">
-                                {isDone ? <CheckCircle2 size={16} className="text-gray-400"/> : <Square size={16} className="text-black"/>}
+                                {isDone ? <CheckCircle2 size={12} className="text-gray-400"/> : <Square size={12} className="text-black"/>}
                               </div>
-                              <div className={`flex flex-col flex-1 leading-tight font-bold ${isDone ? 'opacity-40 line-through' : 'text-black'}`}>
-                                <span className="uppercase text-[11px] !text-[#ea580c] tracking-tight">[{subject}]</span>
-                                <span className="mt-1.5 text-xs">{topicName}</span>
-                                {duration && <span className="font-bold mt-1 text-[11px] !text-[#ea580c]">[{duration}]</span>}
+                              <div className={`flex flex-col flex-1 leading-[1.1] font-bold ${isDone ? 'opacity-40 line-through' : 'text-black'}`}>
+                                <span className="uppercase text-[8px] !text-[#ea580c] tracking-tight">[{subject}]</span>
+                                <span className="mt-0.5 text-[10px]">{topicName}</span>
+                                {duration && <span className="font-bold mt-0.5 text-[8px] !text-[#ea580c]">[{duration}]</span>}
                               </div>
                             </div>
                           );
                         }
 
                         return (
-                          <div key={tIdx} className="p-1 leading-tight font-bold flex flex-col border-l-2 border-gray-300 pl-3">
-                            <span className="uppercase text-[11px] !text-[#ea580c] tracking-tight">[{subject}]</span>
-                            <span className="block mt-1.5 text-xs text-gray-700">{topicName}</span>
-                            {duration && <span className="font-bold block mt-1 text-[11px] !text-[#ea580c]">[{duration}]</span>}
+                          <div key={tIdx} className="p-1 leading-[1.1] font-bold flex flex-col border-l-[1.5px] border-gray-300 pl-2">
+                            <span className="uppercase text-[8px] !text-[#ea580c] tracking-tight">[{subject}]</span>
+                            <span className="block mt-0.5 text-[9px] text-gray-800">{topicName}</span>
+                            {duration && <span className="font-bold block mt-0.5 text-[8px] !text-[#ea580c]">[{duration}]</span>}
                           </div>
                         );
                       })}
-                      {dayPlan.isToday && <div className="text-[10px] text-gray-400 mt-2 italic font-medium">*Completed items will be removed at midnight.</div>}
                     </div>
                   )}
                 </div>
