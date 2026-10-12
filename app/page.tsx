@@ -163,7 +163,8 @@ const RadarChart = ({ data }: { data: { subject: string, pct: number }[] }) => {
   const dataPoints = orderedData.map((d, i) => getPoint(d.pct, i));
 
   return (
-    <svg viewBox={`0 0 ${size} ${size}`} className="w-full h-auto max-w-[500px] mx-auto overflow-visible font-sans drop-shadow-sm">
+    // ViewBox is heavily widened (-150 to 850 width) to form a perfect landscape rectangle, preventing vertical blowing up.
+    <svg viewBox="-150 -20 850 590" className="w-full h-full max-h-[350px] lg:max-h-[420px] overflow-visible font-sans drop-shadow-sm">
       {[20, 40, 60, 80, 100].map((level) => {
         const levelPoints = orderedData.map((_, i) => getPoint(level, i));
         const levelPath = levelPoints.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ') + ' Z';
@@ -196,7 +197,7 @@ const RadarChart = ({ data }: { data: { subject: string, pct: number }[] }) => {
       })}
 
       {orderedData.map((d, i) => {
-        const labelP = getPoint(135, i); 
+        const labelP = getPoint(145, i); 
         let textAnchor: "middle" | "start" | "end" = "middle";
         const cosVal = Math.cos(i * angleStep - Math.PI / 2);
         
@@ -416,6 +417,13 @@ export default function Dashboard() {
 
   const handleConfirmUrlSync = () => { if (incomingPayload) executeSync(incomingPayload); };
   const handleCancelUrlSync = () => { setIncomingPayload(null); window.history.replaceState({}, document.title, window.location.pathname); };
+
+  // --- MISSING FUNCTION RESTORED ---
+  const handleSyllabusToggle = (type: 'official' | 'parth') => {
+    if (state.syllabusType === type) return;
+    const confirmed = window.confirm("Switching curriculums will reset the consistency grid and clear your active plan (your previous data is saved securely in the background). Continue?");
+    if (confirmed) state.setSyllabusType(type);
+  };
 
   const handleHardReset = () => {
     const confirm1 = window.confirm("🚨 WARNING 🚨\n\nAre you absolutely sure you want to completely erase ALL your progress, history, and active plans? This action CANNOT be undone!");
@@ -1189,7 +1197,7 @@ export default function Dashboard() {
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
                 
                 {/* LEFT HALF: The Vibrant Radar Chart */}
-                <div className="bg-white border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] p-4 sm:p-6 flex flex-col h-full">
+                <div className="bg-white border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] p-4 sm:p-6 flex flex-col h-full overflow-hidden">
                   <div className="flex justify-between items-start mb-6">
                     <div>
                       <h2 className="text-2xl sm:text-3xl font-black uppercase tracking-tighter leading-none">CFA Level I</h2>
@@ -1200,7 +1208,7 @@ export default function Dashboard() {
                       <div className="text-2xl sm:text-3xl font-black leading-none mt-1">{completionPct}%</div>
                     </div>
                   </div>
-                  <div className="flex-1 flex items-center justify-center -mt-4">
+                  <div className="flex-1 flex items-center justify-center -mt-2 min-h-[300px]">
                     <RadarChart data={radarData} />
                   </div>
                 </div>
