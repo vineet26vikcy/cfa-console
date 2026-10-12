@@ -4,10 +4,104 @@ import React, { useState, useEffect, useRef } from 'react';
 import { BookOpen, Calendar, ChevronRight, ChevronDown, Info, CalendarDays, CheckCircle2, Upload, Download, PieChart, Target, ListTodo, Settings, AlertTriangle, Printer, Link as LinkIcon, FileText } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import LZString from 'lz-string';
+import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 
-import { useStore, getLocalYMD, getTodayStr, getDaysDiff } from './store';
+// --- 1. HELPER FUNCTIONS ---
+const getLocalYMD = (dateObj: Date) => {
+  const year = dateObj.getFullYear();
+  const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+  const day = String(dateObj.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+const getTodayStr = () => getLocalYMD(new Date());
+const getDaysDiff = (dateStr1: string, dateStr2: string) => {
+  const d1 = new Date(dateStr1); const d2 = new Date(dateStr2);
+  d1.setHours(0,0,0,0); d2.setHours(0,0,0,0);
+  return Math.round((d1.getTime() - d2.getTime()) / (1000 * 60 * 60 * 24));
+};
 
-// --- CUSTOM SVG RADAR CHART COMPONENT ---
+// --- 2. ZUSTAND MEMORY STORE ---
+interface TrackerState {
+  theme: 'light' | 'dark' | 'rgb';
+  syllabusType: 'official' | 'parth';
+  completedOfficial: Record<string, string>;
+  dailyOfficial: Record<string, number>;
+  reviewsOfficial: Record<string, { day4: boolean; day7: boolean }>;
+  completedParth: Record<string, string>;
+  dailyParth: Record<string, number>;
+  reviewsParth: Record<string, { day4: boolean; day7: boolean }>;
+  planTopics: string[];
+  planDeadline: string | null;
+  setTheme: (theme: 'light' | 'dark' | 'rgb') => void;
+  setSyllabusType: (type: 'official' | 'parth') => void;
+  toggleTopic: (topic: string) => void;
+  markReview: (topic: string, dayType: 'day4' | 'day7') => void;
+  importData: (data: any) => void;
+  setPlan: (topics: string[], deadline: string) => void;
+  clearPlan: () => void;
+}
+
+const useStore = create<TrackerState>()(
+  persist(
+    (set) => ({
+      theme: 'light',
+      syllabusType: 'parth',
+      completedOfficial: {}, dailyOfficial: {}, reviewsOfficial: {},
+      completedParth: {}, dailyParth: {}, reviewsParth: {},
+      planTopics: [],
+      planDeadline: null,
+      setTheme: (theme) => set(() => ({ theme })),
+      setSyllabusType: (type) => set(() => ({ syllabusType: type, planTopics: [], planDeadline: null })),
+      toggleTopic: (topic) => set((state) => {
+        const todayStr = getTodayStr();
+        const isOff = state.syllabusType === 'official';
+        const completed = isOff ? state.completedOfficial : state.completedParth;
+        const daily = isOff ? state.dailyOfficial : state.dailyParth;
+        const reviews = isOff ? state.reviewsOfficial : state.reviewsParth;
+
+        const isCompleted = !!completed[topic];
+        const newCompleted = { ...completed };
+        const newDaily = { ...daily };
+        const newReviews = { ...reviews };
+
+        if (isCompleted) {
+          const dateCompleted = newCompleted[topic];
+          delete newCompleted[topic];
+          delete newReviews[topic];
+          if (dateCompleted && newDaily[dateCompleted] > 0) newDaily[dateCompleted] -= 1;
+        } else {
+          newCompleted[topic] = todayStr;
+          newDaily[todayStr] = (newDaily[todayStr] || 0) + 1;
+          newReviews[topic] = { day4: false, day7: false };
+        }
+        
+        return isOff 
+          ? { completedOfficial: newCompleted, dailyOfficial: newDaily, reviewsOfficial: newReviews }
+          : { completedParth: newCompleted, dailyParth: newDaily, reviewsParth: newReviews };
+      }),
+      markReview: (topic, dayType) => set((state) => {
+        const isOff = state.syllabusType === 'official';
+        const reviews = isOff ? state.reviewsOfficial : state.reviewsParth;
+        const newReviews = { ...reviews, [topic]: { ...reviews[topic], [dayType]: true } };
+        return isOff ? { reviewsOfficial: newReviews } : { reviewsParth: newReviews };
+      }),
+      importData: (data) => set(() => ({
+        theme: data.theme || 'light',
+        syllabusType: data.syllabusType || 'parth',
+        completedOfficial: data.completedOfficial || {}, dailyOfficial: data.dailyOfficial || {}, reviewsOfficial: data.reviewsOfficial || {},
+        completedParth: data.completedParth || {}, dailyParth: data.dailyParth || {}, reviewsParth: data.reviewsParth || {},
+        planTopics: data.planTopics || [],
+        planDeadline: data.planDeadline || null
+      })),
+      setPlan: (topics, deadline) => set(() => ({ planTopics: topics, planDeadline: deadline })),
+      clearPlan: () => set(() => ({ planTopics: [], planDeadline: null })),
+    }),
+    { name: 'cfa-mono-v9' }
+  )
+);
+
+// --- 3. CUSTOM UI COMPONENTS ---
 const RadarChart = ({ data }: { data: { subject: string, pct: number }[] }) => {
   const size = 400;
   const center = size / 2;
@@ -17,10 +111,7 @@ const RadarChart = ({ data }: { data: { subject: string, pct: number }[] }) => {
   const getPoint = (val: number, index: number) => {
     const angle = index * angleStep - Math.PI / 2;
     const r = (val / 100) * radius;
-    return {
-      x: center + r * Math.cos(angle),
-      y: center + r * Math.sin(angle)
-    };
+    return { x: center + r * Math.cos(angle), y: center + r * Math.sin(angle) };
   };
 
   const dataPoints = data.map((d, i) => getPoint(d.pct, i));
@@ -28,16 +119,10 @@ const RadarChart = ({ data }: { data: { subject: string, pct: number }[] }) => {
 
   const getShortName = (name: string) => {
     const map: Record<string, string> = {
-      "Alternative Investments": "Alt Invts",
-      "Portfolio Management": "Port Mgmt",
-      "Corporate Issuers": "Corp Issuers",
-      "Equity Investments": "Equities",
-      "Quantitative Methods": "Quants",
-      "Fixed Income": "Fixed Inc",
-      "Economics": "Economics",
-      "Derivatives": "Derivs",
-      "Ethics": "Ethics",
-      "FSA": "FSA"
+      "Alternative Investments": "Alt Invts", "Portfolio Management": "Port Mgmt",
+      "Corporate Issuers": "Corp Issuers", "Equity Investments": "Equities",
+      "Quantitative Methods": "Quants", "Fixed Income": "Fixed Inc",
+      "Economics": "Economics", "Derivatives": "Derivs", "Ethics": "Ethics", "FSA": "FSA"
     };
     return map[name] || name;
   };
@@ -183,7 +268,6 @@ export default function Dashboard() {
     d.setDate(d.getDate() + daysToSunday);
     setDraftDeadline(getLocalYMD(d));
 
-    // Handle auto-sync if they paste the link directly into the browser URL bar
     const urlObj = new URL(window.location.href);
     const syncParam = urlObj.searchParams.get('sync');
     if (syncParam) {
@@ -257,11 +341,7 @@ export default function Dashboard() {
         const parsed = JSON.parse(decompressed);
         state.importData(parsed);
         setMagicSyncStatus("SUCCESS");
-        
-        setTimeout(() => {
-          window.location.replace('/');
-        }, 1200);
-
+        setTimeout(() => window.location.replace('/'), 1200);
       } else {
         setMagicSyncStatus("INVALID_LINK");
         setTimeout(() => setMagicSyncStatus(null), 4000);
@@ -312,7 +392,6 @@ export default function Dashboard() {
   const toggleTopicSection = (section: string) => { setExpandedTopicSections(prev => ({ ...prev, [section]: !prev[section] })); };
   const togglePlanSubject = (subject: string) => { setExpandedPlanSubjects(prev => ({ ...prev, [subject]: !prev[subject] })); };
 
-  // --- STATS CALCULATIONS ---
   const activeCompletedTopics = Object.keys(completedTopics).filter(topic => getSubjectForTopic(topic, currentSyllabus) !== 'Unknown');
   const totalCompleted = activeCompletedTopics.length;
   const completionPct = Math.round((totalCompleted / getTotalTopicsCount(currentSyllabus)) * 100) || 0;
@@ -326,17 +405,13 @@ export default function Dashboard() {
     return { subject, pct: subPct };
   });
 
+  // --- HEATMAP FIX: ANCHORED TO CURRENT MONTH ---
   const generateHeatmapGrid = () => {
     const today = new Date();
     today.setHours(0,0,0,0);
     
-    const completionDates = Object.values(completedTopics).sort() as string[];
-    const firstCompletionStr = completionDates.length > 0 ? completionDates[0] : getLocalYMD(today);
-
-    const [sYear, sMonth, sDay] = firstCompletionStr.split('-').map(Number);
-    let startGridDate = new Date(sYear, sMonth - 1, sDay);
-    startGridDate.setHours(0,0,0,0);
-    
+    // Start grid at the beginning of the CURRENT month, aligned to Monday
+    let startGridDate = new Date(today.getFullYear(), today.getMonth(), 1);
     const dayOfWeek = startGridDate.getDay();
     const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
     startGridDate.setDate(startGridDate.getDate() - daysToMonday);
@@ -344,13 +419,13 @@ export default function Dashboard() {
     const cols = [];
     let currentDate = new Date(startGridDate);
     
+    // Build exactly 52 weeks going forward
     for (let w = 0; w < 52; w++) { 
       const colDays = [];
       for (let d = 0; d < 7; d++) {
         const isFuture = currentDate > today;
         const dateStr = getLocalYMD(currentDate);
         const count = dailyCompletions[dateStr] || 0;
-        const isAfterStart = dateStr >= firstCompletionStr;
         
         let colorClass = "bg-gray-200 border-gray-300"; 
         if (!isFuture) {
@@ -359,8 +434,6 @@ export default function Dashboard() {
             else if (count / maxDaily <= 0.50) colorClass = "bg-green-500 border-green-600";
             else if (count / maxDaily <= 0.75) colorClass = "bg-green-600 border-green-700";
             else colorClass = "bg-green-800 border-green-900";
-          } else if (isAfterStart) {
-            colorClass = "bg-red-500 border-red-600"; 
           }
         }
 
@@ -1154,7 +1227,7 @@ export default function Dashboard() {
                 ) : (
                    <div className="space-y-6">
                       <p className="text-[10px] sm:text-xs text-gray-500 leading-relaxed">
-                        Manually sync your progress across devices without a database. <b>Device A:</b> Generate a link. <b>Device B:</b> Paste the link to instantly mirror your progress.
+                        Manually sync your progress across devices without an account. <b>Device A:</b> Generate a link. <b>Device B:</b> Paste the link to instantly mirror your progress.
                       </p>
 
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
