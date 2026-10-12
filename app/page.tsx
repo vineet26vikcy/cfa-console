@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from 'react';
-import { BookOpen, Calendar, ChevronRight, ChevronDown, Info, CalendarDays, CheckCircle2, Upload, Download, PieChart, Target, ListTodo, Settings, AlertTriangle, Printer, Link as LinkIcon, FileText } from 'lucide-react';
+import { BookOpen, Calendar, ChevronRight, ChevronDown, Info, CalendarDays, CheckCircle2, Upload, Download, PieChart, Target, ListTodo, Settings, AlertTriangle, Printer, Link as LinkIcon, FileText, Trash2 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import LZString from 'lz-string';
 import { create } from 'zustand';
@@ -40,6 +40,7 @@ interface TrackerState {
   importData: (data: any) => void;
   setPlan: (topics: string[], deadline: string) => void;
   clearPlan: () => void;
+  hardReset: () => void; // <--- NEW HARD RESET FUNCTION
 }
 
 const useStore = create<TrackerState>()(
@@ -96,6 +97,11 @@ const useStore = create<TrackerState>()(
       })),
       setPlan: (topics, deadline) => set(() => ({ planTopics: topics, planDeadline: deadline })),
       clearPlan: () => set(() => ({ planTopics: [], planDeadline: null })),
+      hardReset: () => set(() => ({
+        completedOfficial: {}, dailyOfficial: {}, reviewsOfficial: {},
+        completedParth: {}, dailyParth: {}, reviewsParth: {},
+        planTopics: [], planDeadline: null
+      }))
     }),
     { name: 'cfa-mono-v9' }
   )
@@ -374,6 +380,18 @@ export default function Dashboard() {
     window.history.replaceState({}, document.title, window.location.pathname);
   };
 
+  const handleHardReset = () => {
+    const confirm1 = window.confirm("🚨 WARNING 🚨\n\nAre you absolutely sure you want to completely erase ALL your progress, history, and active plans? This action CANNOT be undone!");
+    if (confirm1) {
+      const confirm2 = window.confirm("Final check: Click OK to delete EVERYTHING and start fresh from today.");
+      if (confirm2) {
+        state.hardReset();
+        alert("All data has been wiped. Good luck on your fresh start!");
+        window.location.replace('/'); // Hard reload to guarantee clean UI
+      }
+    }
+  };
+
   if (!mounted || isLoadingSyllabus) {
     return (
       <div className="min-h-screen bg-[#fafafa] flex flex-col items-center justify-center font-mono">
@@ -392,6 +410,7 @@ export default function Dashboard() {
   const toggleTopicSection = (section: string) => { setExpandedTopicSections(prev => ({ ...prev, [section]: !prev[section] })); };
   const togglePlanSubject = (subject: string) => { setExpandedPlanSubjects(prev => ({ ...prev, [subject]: !prev[subject] })); };
 
+  // --- STATS CALCULATIONS ---
   const activeCompletedTopics = Object.keys(completedTopics).filter(topic => getSubjectForTopic(topic, currentSyllabus) !== 'Unknown');
   const totalCompleted = activeCompletedTopics.length;
   const completionPct = Math.round((totalCompleted / getTotalTopicsCount(currentSyllabus)) * 100) || 0;
@@ -405,7 +424,7 @@ export default function Dashboard() {
     return { subject, pct: subPct };
   });
 
-  // --- HEATMAP FIX: ANCHORED TO CURRENT MONTH ---
+  // --- HEATMAP: ANCHORED TO CURRENT MONTH ---
   const generateHeatmapGrid = () => {
     const today = new Date();
     today.setHours(0,0,0,0);
@@ -419,7 +438,6 @@ export default function Dashboard() {
     const cols = [];
     let currentDate = new Date(startGridDate);
     
-    // Build exactly 52 weeks going forward
     for (let w = 0; w < 52; w++) { 
       const colDays = [];
       for (let d = 0; d < 7; d++) {
@@ -486,12 +504,6 @@ export default function Dashboard() {
     return upcoming;
   };
   const upcomingReviews = getUpcomingReviews();
-
-  const handleSyllabusToggle = (type: 'official' | 'parth') => {
-    if (state.syllabusType === type) return;
-    const confirmed = window.confirm("Switching curriculums will start a new consistency grid and clear your active plan (your previous data is saved securely in the background). Continue?");
-    if (confirmed) state.setSyllabusType(type);
-  };
 
   const getPlanDetails = () => {
     if (!state.planDeadline) return null;
@@ -1166,7 +1178,7 @@ export default function Dashboard() {
                 <div className="flex items-start gap-3 mb-4 p-3 bg-amber-50 border border-amber-200">
                   <AlertTriangle size={18} className="text-amber-600 flex-shrink-0 mt-0.5" />
                   <p className="text-xs text-amber-800 font-bold leading-snug">
-                    Warning: Switching modes will reset the consistency grid to match the selected syllabus and clear your active planner schedule. Your previous data is securely saved in the background.
+                    Warning: Switching modes will clear your active planner schedule. Your previous data is securely saved in the background.
                   </p>
                 </div>
                 <div className="flex flex-col sm:flex-row bg-gray-100 p-1 border-2 border-black gap-1 sm:gap-0">
@@ -1186,7 +1198,7 @@ export default function Dashboard() {
                     <LinkIcon size={18} />
                     <h2 className="text-sm font-bold uppercase tracking-tight">Peer-to-Peer Magic Sync</h2>
                   </div>
-                  <span className="bg-blue-600 text-white px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest">Serverless</span>
+                  <span className="bg-gray-200 text-gray-600 px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest">Serverless</span>
                 </div>
                 
                 {/* INCOMING URL SYNC POPUP */}
@@ -1328,6 +1340,23 @@ export default function Dashboard() {
                     </div>
                   </div>
                 </div>
+              </div>
+
+              {/* DANGER ZONE - HARD RESET */}
+              <div className="bg-red-50 border-2 border-red-600 shadow-[4px_4px_0px_0px_rgba(220,38,38,1)] p-4 sm:p-5 mt-8">
+                <div className="flex items-center gap-2 mb-2 border-b-2 border-red-600 pb-2">
+                  <AlertTriangle size={18} className="text-red-600" />
+                  <h2 className="text-sm font-bold uppercase tracking-tight text-red-600">Danger_Zone</h2>
+                </div>
+                <p className="text-xs text-red-800 font-bold mb-4 mt-4">
+                  Clicking this will permanently erase all completed topics, review schedules, and plans from this device.
+                </p>
+                <button 
+                  onClick={handleHardReset} 
+                  className="w-full bg-red-600 text-white border-2 border-red-800 px-4 py-3 text-xs font-bold uppercase tracking-widest hover:bg-red-700 transition-colors flex items-center justify-center gap-2 shadow-[4px_4px_0px_0px_rgba(153,27,27,1)] hover:translate-y-[2px] hover:translate-x-[2px] hover:shadow-[2px_2px_0px_0px_rgba(153,27,27,1)] active:translate-y-[4px] active:translate-x-[4px] active:shadow-none"
+                >
+                  <Trash2 size={16} /> Delete Everything & Start Fresh
+                </button>
               </div>
 
             </div>
