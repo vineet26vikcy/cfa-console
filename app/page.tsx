@@ -182,11 +182,14 @@ export default function Dashboard() {
     setDraftDeadline(getLocalYMD(d));
 
     // Handle auto-sync if they paste the link directly into the browser URL bar
-    const params = new URLSearchParams(window.location.search);
-    const dataParam = params.get('data');
-    if (dataParam) {
+    // FIX: Bypassing URLSearchParams completely to protect '+' symbols from becoming spaces!
+    const url = window.location.href;
+    if (url.includes('?data=')) {
       try {
-        const decompressed = LZString.decompressFromEncodedURIComponent(dataParam);
+        // Splitting explicitly to grab the raw data without any browser auto-decoding
+        const rawPayload = url.split('?data=')[1].split('#')[0].split('&')[0];
+        const decompressed = LZString.decompressFromEncodedURIComponent(rawPayload);
+        
         if (decompressed) {
           state.importData(JSON.parse(decompressed));
           window.history.replaceState({}, document.title, window.location.pathname);
@@ -251,10 +254,11 @@ export default function Dashboard() {
     if (!pastedLink.trim()) return;
     
     try {
-      // Extract payload whether they pasted the full URL or just the payload string
-      let payload = pastedLink;
-      if (pastedLink.includes('?data=')) {
-        payload = pastedLink.split('?data=')[1];
+      let payload = pastedLink.trim();
+      
+      // FIX: Bypassing standard URL parsing to protect the '+' symbol
+      if (payload.includes('?data=')) {
+        payload = payload.split('?data=')[1].split('#')[0].split('&')[0];
       }
       
       const decompressed = LZString.decompressFromEncodedURIComponent(payload);
