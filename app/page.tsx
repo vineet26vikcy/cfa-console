@@ -1,12 +1,11 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from 'react';
-import { BookOpen, Calendar, ChevronRight, ChevronDown, Info, CalendarDays, CheckCircle2, Upload, Download, PieChart, Target, ListTodo, Settings, AlertTriangle, Printer, Link as LinkIcon, FileText, Cloud, LogOut, RefreshCw } from 'lucide-react';
+import { BookOpen, Calendar, ChevronRight, ChevronDown, Info, CalendarDays, CheckCircle2, Upload, Download, PieChart, Target, ListTodo, Settings, AlertTriangle, Printer, Link as LinkIcon, FileText } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import LZString from 'lz-string';
 
 import { useStore, getLocalYMD, getTodayStr, getDaysDiff } from './store';
-import { useCloudSync } from './useCloudSync';
 
 // --- CUSTOM SVG RADAR CHART COMPONENT ---
 const RadarChart = ({ data }: { data: { subject: string, pct: number }[] }) => {
@@ -133,6 +132,7 @@ const TopicLabel = ({ topic, isChecked, state, onToggle }: { topic: string, isCh
   );
 };
 
+// Utilities
 const getSubjectForTopic = (topicName: string, syllabusObj: any) => {
   for (const [subject, data] of Object.entries(syllabusObj)) {
     const sections = (data as any).sections;
@@ -175,17 +175,6 @@ export default function Dashboard() {
   const [incomingPayload, setIncomingPayload] = useState<string | null>(null);
 
   const state = useStore();
-  const { session, login, logout, pushData, pullData, isSyncing, syncStatus: cloudSyncStatus } = useCloudSync();
-
-  // Handle Supabase Auto-Push on State Change
-  useEffect(() => {
-    if (!session) return;
-    const delayDebounce = setTimeout(() => {
-      pushData();
-    }, 2000); // Wait 2 seconds after user stops clicking to push
-    return () => clearTimeout(delayDebounce);
-  }, [session, state.completedOfficial, state.completedParth, state.reviewsOfficial, state.reviewsParth, state.planTopics]);
-
 
   useEffect(() => { 
     setMounted(true); 
@@ -1117,55 +1106,6 @@ export default function Dashboard() {
                 </div>
               </div>
 
-              {/* CLOUD SYNC ENGINE (SUPABASE) */}
-              <div className="bg-white border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] p-4 sm:p-5">
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b-2 border-black pb-2 mb-4">
-                  <div className="flex items-center gap-2">
-                    <Cloud size={18} />
-                    <h2 className="text-sm font-bold uppercase tracking-tight">Supabase_Cloud_Sync</h2>
-                  </div>
-                  <span className="bg-blue-600 text-white px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest">Auto-Sync Active</span>
-                </div>
-
-                {!session ? (
-                  <div className="bg-gray-50 border-2 border-black p-6 flex flex-col items-center justify-center text-center">
-                    <h3 className="font-bold text-sm uppercase mb-2">Connect Google Account</h3>
-                    <p className="text-xs text-gray-500 mb-6 max-w-sm">Sign in to securely sync your syllabus progress to your personal database. Changes sync automatically.</p>
-                    <button onClick={login} className="bg-white border-2 border-black px-6 py-3 text-xs font-bold uppercase tracking-widest hover:bg-gray-100 transition-colors flex items-center justify-center gap-2 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:translate-y-[2px] hover:translate-x-[2px] hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-y-[4px] active:translate-x-[4px] active:shadow-none">
-                       Sign In With Google
-                    </button>
-                  </div>
-                ) : (
-                  <div className="bg-gray-50 border-2 border-black p-4 flex flex-col gap-4">
-                    <div className="flex justify-between items-center border-b border-gray-300 pb-4">
-                      <div>
-                        <p className="text-[10px] text-gray-500 font-bold uppercase">Authenticated As</p>
-                        <p className="text-xs font-bold mt-1">{session.user.email}</p>
-                      </div>
-                      <button onClick={logout} className="text-red-600 border border-red-200 bg-red-50 px-3 py-1.5 text-[10px] font-bold uppercase hover:bg-red-100 transition-colors flex items-center gap-2">
-                        <LogOut size={12} /> Disconnect
-                      </button>
-                    </div>
-
-                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                      <div className="flex items-center gap-2 text-xs font-bold uppercase">
-                        {isSyncing ? <RefreshCw size={14} className="animate-spin text-blue-600" /> : <CheckCircle2 size={14} className="text-green-600" />}
-                        <span className={isSyncing ? "text-blue-600" : "text-green-600"}>{cloudSyncStatus}</span>
-                      </div>
-                      
-                      <div className="flex w-full sm:w-auto gap-2">
-                        <button onClick={() => pullData(session.user.id)} disabled={isSyncing} className="flex-1 bg-white border-2 border-black px-3 py-2 text-[10px] font-bold uppercase hover:bg-gray-100 transition-colors disabled:opacity-50">
-                          Force Pull
-                        </button>
-                        <button onClick={pushData} disabled={isSyncing} className="flex-1 bg-black text-white px-3 py-2 text-[10px] font-bold uppercase hover:bg-gray-800 transition-colors disabled:opacity-50">
-                          Force Push
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-
               {/* MAGIC LINK SYNC ENGINE (FALLBACK) */}
               <div className="bg-white border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] p-4 sm:p-5">
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b-2 border-black pb-2 mb-4">
@@ -1173,7 +1113,7 @@ export default function Dashboard() {
                     <LinkIcon size={18} />
                     <h2 className="text-sm font-bold uppercase tracking-tight">Peer-to-Peer Magic Sync</h2>
                   </div>
-                  <span className="bg-gray-200 text-gray-600 px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest">Offline Fallback</span>
+                  <span className="bg-blue-600 text-white px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest">Serverless</span>
                 </div>
                 
                 {/* INCOMING URL SYNC POPUP */}
@@ -1214,7 +1154,7 @@ export default function Dashboard() {
                 ) : (
                    <div className="space-y-6">
                       <p className="text-[10px] sm:text-xs text-gray-500 leading-relaxed">
-                        Manually sync your progress across devices without an account. <b>Device A:</b> Generate a link. <b>Device B:</b> Paste the link to instantly mirror your progress.
+                        Manually sync your progress across devices without a database. <b>Device A:</b> Generate a link. <b>Device B:</b> Paste the link to instantly mirror your progress.
                       </p>
 
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
